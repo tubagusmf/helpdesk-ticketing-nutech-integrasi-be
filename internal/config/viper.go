@@ -15,12 +15,12 @@ func LoadWithViper() {
 		log.Fatalf("Error reading config.yml: %v", err)
 	}
 
-	viper.SetConfigFile(".env")
-	viper.SetConfigType("env")
+	// viper.SetConfigFile(".env")
+	// viper.SetConfigType("env")
 
-	if err := viper.MergeInConfig(); err != nil {
-		log.Fatalf("Error reading .env: %v", err)
-	}
+	// if err := viper.MergeInConfig(); err != nil {
+	// 	log.Fatalf("Error reading .env: %v", err)
+	// }
 
-	viper.AutomaticEnv()
+	// viper.AutomaticEnv()
 }
