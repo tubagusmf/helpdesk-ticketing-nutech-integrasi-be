@@ -30,13 +30,16 @@ func (r *UserRepo) Create(ctx context.Context, user model.User) (*model.User, er
 
 func (r *UserRepo) FindByID(ctx context.Context, id int64) (*model.User, error) {
 	var user model.User
+
 	err := r.db.WithContext(ctx).
+		Preload("Projects").
 		Where("id = ? AND deleted_at IS NULL", id).
 		First(&user).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, errors.New("user not found")
 	}
+
 	if err != nil {
 		return nil, err
 	}

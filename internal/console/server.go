@@ -40,11 +40,17 @@ func httpServer(cmd *cobra.Command, args []string) {
 	defer sqlDB.Close()
 
 	userRepo := repository.NewUserRepo(postgresDB)
+	roleRepo := repository.NewRoleRepo(postgresDB)
+	projectRepo := repository.NewProjectRepo(postgresDB)
 	userUsecase := usecase.NewUserUsecase(userRepo)
+	roleUsecase := usecase.NewRoleUsecase(roleRepo)
+	projectUsecase := usecase.NewProjectUsecase(projectRepo)
 
 	e := echo.New()
 
 	handlerHttp.NewUserHandler(e, userUsecase)
+	handlerHttp.NewRoleHandler(e, roleUsecase)
+	handlerHttp.NewProjectHandler(e, projectUsecase)
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"http://localhost:5173"},
