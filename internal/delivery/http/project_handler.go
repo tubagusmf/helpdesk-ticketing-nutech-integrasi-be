@@ -19,11 +19,11 @@ func NewProjectHandler(e *echo.Echo, projectUsecase model.IProjectUsecase) {
 
 	group := e.Group("/v1/projects")
 
-	group.POST("", handler.Create, AuthMiddleware)
+	group.POST("/create", handler.Create, AuthMiddleware)
 	group.GET("", handler.FindAll, AuthMiddleware)
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
-	group.PUT("/:id", handler.Update, AuthMiddleware)
-	group.DELETE("/:id", handler.Delete, AuthMiddleware)
+	group.PUT("/update/:id", handler.Update, AuthMiddleware)
+	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 }
 
 func (h *ProjectHandler) Create(c echo.Context) error {

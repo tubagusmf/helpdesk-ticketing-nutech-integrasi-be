@@ -19,11 +19,11 @@ func NewRoleHandler(e *echo.Echo, roleUsecase model.IRoleUsecase) {
 
 	group := e.Group("/v1/roles")
 
-	group.POST("", handler.Create, AuthMiddleware)
+	group.POST("/create", handler.Create, AuthMiddleware)
 	group.GET("", handler.FindAll, AuthMiddleware)
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
-	group.PUT("/:id", handler.Update, AuthMiddleware)
-	group.DELETE("/:id", handler.Delete, AuthMiddleware)
+	group.PUT("/update/:id", handler.Update, AuthMiddleware)
+	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 }
 
 func (h *RoleHandler) Create(c echo.Context) error {

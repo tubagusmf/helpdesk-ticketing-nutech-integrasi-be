@@ -7,6 +7,7 @@ import (
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type UserRepo struct {
@@ -18,14 +19,37 @@ func NewUserRepo(db *gorm.DB) model.IUserRepository {
 }
 
 func (r *UserRepo) Create(ctx context.Context, user model.User) (*model.User, error) {
-	user.CreatedAt = time.Now()
-	user.UpdatedAt = time.Now()
+	tx := r.db.WithContext(ctx).Begin()
 
-	if err := r.db.WithContext(ctx).Create(&user).Error; err != nil {
+	now := time.Now()
+	user.CreatedAt = now
+	user.UpdatedAt = now
+
+	if err := tx.Omit("Projects.*").Create(&user).Error; err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
-	return &user, nil
+	for _, project := range user.Projects {
+		userProject := map[string]interface{}{
+			"user_id":    user.ID,
+			"project_id": project.ID,
+			"created_at": now,
+			"updated_at": now,
+		}
+
+		if err := tx.Table("user_projects").
+			Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "user_id"}, {Name: "project_id"}},
+				DoNothing: true,
+			}).
+			Create(userProject).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+	}
+
+	return &user, tx.Commit().Error
 }
 
 func (r *UserRepo) FindByID(ctx context.Context, id int64) (*model.User, error) {
@@ -86,17 +110,66 @@ func (r *UserRepo) FindAll(ctx context.Context, filter model.User) ([]*model.Use
 }
 
 func (r *UserRepo) Update(ctx context.Context, user model.User) error {
-	user.UpdatedAt = time.Now()
+	tx := r.db.WithContext(ctx).Begin()
 
-	return r.db.WithContext(ctx).
-		Model(&model.User{}).
+	now := time.Now()
+
+	if err := tx.Model(&model.User{}).
 		Where("id = ? AND deleted_at IS NULL", user.ID).
-		Updates(user).Error
+		Updates(map[string]interface{}{
+			"name":       user.Name,
+			"email":      user.Email,
+			"password":   user.Password,
+			"role_id":    user.RoleID,
+			"is_active":  user.IsActive,
+			"updated_at": now,
+		}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Table("user_projects").
+		Where("user_id = ?", user.ID).
+		Delete(nil).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	for _, project := range user.Projects {
+		userProject := map[string]interface{}{
+			"user_id":    user.ID,
+			"project_id": project.ID,
+			"created_at": now,
+			"updated_at": now,
+		}
+
+		if err := tx.Table("user_projects").Create(userProject).Error; err != nil {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
 }
 
 func (r *UserRepo) Delete(ctx context.Context, id int64) error {
-	return r.db.WithContext(ctx).
-		Model(&model.User{}).
+	tx := r.db.WithContext(ctx).Begin()
+
+	now := time.Now()
+
+	if err := tx.Model(&model.User{}).
 		Where("id = ?", id).
-		Update("deleted_at", time.Now()).Error
+		Update("deleted_at", now).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if err := tx.Table("user_projects").
+		Where("user_id = ?", id).
+		Delete(nil).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }

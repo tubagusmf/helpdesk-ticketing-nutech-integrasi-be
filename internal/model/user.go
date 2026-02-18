@@ -13,7 +13,7 @@ const BearerAuthKey ContextAuthKey = "BearerAuth"
 
 type CustomClaims struct {
 	UserID int64 `json:"user_id"`
-	RoleID int64 `json:"role"`
+	RoleID int64 `json:"role_id"`
 	jwt.RegisteredClaims
 }
 
@@ -22,7 +22,7 @@ type User struct {
 	Name      string     `json:"name"`
 	Email     string     `json:"email"`
 	Password  string     `json:"-"`
-	RoleID    int64      `json:"role"`
+	RoleID    int64      `json:"role_id"`
 	IsActive  bool       `json:"is_active"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -54,17 +54,22 @@ type LoginInput struct {
 	Email    string `json:"email" validate:"required"`
 	Password string `json:"password" validate:"required"`
 }
+type ProjectPayload struct {
+	ID int64 `json:"id"`
+}
 
 type CreateUserInput struct {
-	Name     string `json:"name" validate:"required"`
-	Email    string `json:"email" validate:"required"`
-	Password string `json:"password" validate:"required,min=3,max=50"`
-	RoleID   int64  `json:"role" validate:"required"`
+	Name     string           `json:"name" validate:"required"`
+	Email    string           `json:"email" validate:"required"`
+	Password string           `json:"password" validate:"required,min=3,max=50"`
+	RoleID   int64            `json:"role_id" validate:"required"`
+	Projects []ProjectPayload `json:"projects"`
 }
 
 type UpdateUserInput struct {
-	Name     string `json:"name" validate:"required"`
-	Email    string `json:"email" validate:"required"`
-	Password string `json:"password" validate:"required,min=3,max=50"`
-	RoleID   int64  `json:"role" validate:"required"`
+	Name     string           `json:"name" validate:"required"`
+	Email    string           `json:"email" validate:"required"`
+	Password string           `json:"password" validate:"required,min=3,max=50"`
+	RoleID   int64            `json:"role_id" validate:"required"`
+	Projects []ProjectPayload `json:"projects"`
 }

@@ -65,18 +65,28 @@ func (u *UserUsecase) Create(ctx context.Context, in model.CreateUserInput) (str
 		return "", err
 	}
 
+	var projects []model.Project
+	for _, p := range in.Projects {
+		projects = append(projects, model.Project{
+			ID: p.ID,
+		})
+	}
+
 	newUser, err := u.userRepo.Create(ctx, model.User{
 		Name:     in.Name,
 		Email:    in.Email,
 		Password: hashed,
 		RoleID:   in.RoleID,
 		IsActive: true,
+		Projects: projects,
 	})
 
 	if err != nil {
 		log.Error(err)
 		return "", err
 	}
+
+	logrus.Infof("Projects count: %d", len(newUser.Projects))
 
 	accessToken, err := helper.GenerateToken(*newUser)
 	if err != nil {
@@ -138,6 +148,17 @@ func (u *UserUsecase) Update(ctx context.Context, id int64, in model.UpdateUserI
 	user.Email = in.Email
 	user.Password = hashed
 	user.RoleID = in.RoleID
+
+	var projects []model.Project
+	for _, p := range in.Projects {
+		projects = append(projects, model.Project{
+			ID: p.ID,
+		})
+	}
+
+	user.Projects = projects
+
+	logrus.Infof("Projects count: %d", len(user.Projects))
 
 	return u.userRepo.Update(ctx, *user)
 }

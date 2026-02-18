@@ -23,8 +23,8 @@ func NewUserHandler(e *echo.Echo, userUsecase model.IUserUsecase) {
 	group.POST("/register", handler.Create)
 	group.GET("", handler.FindAll, AuthMiddleware)
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
-	group.PUT("/:id", handler.Update, AuthMiddleware)
-	group.DELETE("/:id", handler.Delete, AuthMiddleware)
+	group.PUT("/update/:id", handler.Update, AuthMiddleware)
+	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 }
 
 func (h *UserHandler) Login(c echo.Context) error {
