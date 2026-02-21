@@ -7,15 +7,24 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
+	"gorm.io/gorm"
 )
 
 type TicketUsecase struct {
-	ticketRepo model.ITicketRepository
+	ticketRepo        model.ITicketRepository
+	ticketHistoryRepo model.ITicketHistoryRepository
+	db                *gorm.DB
 }
 
-func NewTicketUsecase(ticketRepo model.ITicketRepository) model.ITicketUsecase {
+func NewTicketUsecase(
+	db *gorm.DB,
+	ticketRepo model.ITicketRepository,
+	historyRepo model.ITicketHistoryRepository,
+) model.ITicketUsecase {
 	return &TicketUsecase{
-		ticketRepo: ticketRepo,
+		db:                db,
+		ticketRepo:        ticketRepo,
+		ticketHistoryRepo: historyRepo,
 	}
 }
 
@@ -72,18 +81,38 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		Priority:     in.Priority,
 		Description:  in.Description,
 		DueAt:        in.DueAt,
+		Status:       model.StatusOpen,
 	}
 
-	created, err := u.ticketRepo.Create(ctx, ticket)
-	if err != nil {
-		log.Error("Failed to create ticket: ", err)
+	tx := u.db.WithContext(ctx).Begin()
+
+	if err := tx.Create(&ticket).Error; err != nil {
+		tx.Rollback()
 		return nil, err
 	}
 
-	return created, nil
+	// Insert history
+	statusStr := string(ticket.Status)
+
+	history := model.TicketHistory{
+		TicketID:  ticket.ID,
+		UserID:    reporterID,
+		Action:    "CREATED",
+		FieldName: "status",
+		NewValue:  &statusStr,
+	}
+
+	if err := tx.Create(&history).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	tx.Commit()
+
+	return &ticket, nil
 }
 
-func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, in model.UpdateTicketStatusInput) error {
+func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64, in model.UpdateTicketStatusInput) error {
 	log := logrus.WithFields(logrus.Fields{
 		"id": id,
 	})
@@ -97,22 +126,52 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, in model.Upd
 		return errors.New("invalid ticket status")
 	}
 
-	ticket, err := u.ticketRepo.FindByID(ctx, id)
-	if err != nil {
+	tx := u.db.WithContext(ctx).Begin()
+
+	var ticket model.Ticket
+	if err := tx.First(&ticket, id).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
 
-	ticket.Status = in.Status
+	oldStatus := ticket.Status
+	newStatus := in.Status
 
-	if in.Status == model.StatusResolved {
+	if oldStatus == newStatus {
+		tx.Rollback()
+		return errors.New("status is the same")
+	}
+
+	ticket.Status = newStatus
+
+	if newStatus == model.StatusResolved {
 		now := time.Now()
 		ticket.ResolvedAt = &now
 	}
 
-	if err := u.ticketRepo.Update(ctx, *ticket); err != nil {
-		log.Error("Failed to update ticket: ", err)
+	if err := tx.Save(&ticket).Error; err != nil {
+		tx.Rollback()
 		return err
 	}
+
+	oldStr := string(oldStatus)
+	newStr := string(newStatus)
+
+	history := model.TicketHistory{
+		TicketID:  ticket.ID,
+		UserID:    userID,
+		Action:    "UPDATED",
+		FieldName: "status",
+		OldValue:  &oldStr,
+		NewValue:  &newStr,
+	}
+
+	if err := tx.Create(&history).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	tx.Commit()
 
 	return nil
 }

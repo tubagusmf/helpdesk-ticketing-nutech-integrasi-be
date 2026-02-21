@@ -70,6 +70,6 @@ type ITicketUsecase interface {
 	FindAll(ctx context.Context, filter Ticket) ([]*Ticket, error)
 	FindByID(ctx context.Context, id int64) (*Ticket, error)
 	Create(ctx context.Context, reporterID int64, in CreateTicketInput) (*Ticket, error)
-	UpdateStatus(ctx context.Context, id int64, in UpdateTicketStatusInput) error
+	UpdateStatus(ctx context.Context, id int64, userID int64, in UpdateTicketStatusInput) error
 	Delete(ctx context.Context, id int64) error
 }

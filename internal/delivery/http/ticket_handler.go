@@ -85,7 +85,21 @@ func (h *TicketHandler) UpdateStatus(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	if err := h.ticketUsecase.UpdateStatus(c.Request().Context(), id, body); err != nil {
+	claim, ok := c.Request().Context().
+		Value(model.BearerAuthKey).(*model.CustomClaims)
+
+	if !ok || claim == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	userID := claim.UserID
+
+	if err := h.ticketUsecase.UpdateStatus(
+		c.Request().Context(),
+		id,
+		userID,
+		body,
+	); err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
