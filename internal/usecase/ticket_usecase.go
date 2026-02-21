@@ -91,7 +91,6 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		return nil, err
 	}
 
-	// Insert history
 	statusStr := string(ticket.Status)
 
 	history := model.TicketHistory{
