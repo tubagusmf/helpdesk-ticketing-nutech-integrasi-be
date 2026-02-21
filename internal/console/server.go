@@ -50,6 +50,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	ticketRepo := repository.NewTicketRepo(postgresDB)
 	ticketHistoryRepo := repository.NewTicketHistoryRepo(postgresDB)
 	ticketComment := repository.NewTicketCommentRepo(postgresDB)
+	ticketResolution := repository.NewTicketResolutionRepo(postgresDB)
 
 	userUsecase := usecase.NewUserUsecase(userRepo)
 	roleUsecase := usecase.NewRoleUsecase(roleRepo)
@@ -62,6 +63,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	ticketUsecase := usecase.NewTicketUsecase(postgresDB, ticketRepo, ticketHistoryRepo)
 	ticketHistoryUsecase := usecase.NewTicketHistoryUsecase(ticketHistoryRepo)
 	ticketCommentUsecase := usecase.NewTicketCommentUsecase(ticketComment)
+	ticketResolutionUsecase := usecase.NewTicketResolutionUsecase(postgresDB, ticketResolution, ticketHistoryRepo, ticketRepo)
 
 	e := echo.New()
 
@@ -76,6 +78,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewTicketHandler(e, ticketUsecase)
 	handlerHttp.NewTicketHistoryHandler(e, ticketHistoryUsecase)
 	handlerHttp.NewTicketCommentHandler(e, ticketCommentUsecase)
+	handlerHttp.NewTicketResolutionHandler(e, ticketResolutionUsecase)
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"http://localhost:5173"},
