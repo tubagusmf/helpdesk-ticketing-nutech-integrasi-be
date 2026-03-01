@@ -25,6 +25,9 @@ func GenerateToken(user model.User) (string, error) {
 	claims := model.CustomClaims{
 		UserID: user.ID,
 		RoleID: user.RoleID,
+		Role:   user.Role.Name,
+		Email:  user.Email,
+		Name:   user.Name,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
 		},

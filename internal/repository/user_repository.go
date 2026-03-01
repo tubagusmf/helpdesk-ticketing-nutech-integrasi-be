@@ -74,6 +74,7 @@ func (r *UserRepo) FindByID(ctx context.Context, id int64) (*model.User, error) 
 func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*model.User, error) {
 	var user model.User
 	err := r.db.WithContext(ctx).
+		Preload("Role").
 		Where("email = ? AND deleted_at IS NULL", email).
 		First(&user).Error
 

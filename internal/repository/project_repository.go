@@ -46,8 +46,9 @@ func (r *ProjectRepo) FindByID(ctx context.Context, id int64) (*model.Project, e
 	return &project, nil
 }
 
-func (r *ProjectRepo) FindAll(ctx context.Context, filter model.Project) ([]*model.Project, error) {
+func (r *ProjectRepo) FindAll(ctx context.Context, filter model.Project, limit, offset int) ([]*model.Project, int64, error) {
 	var projects []*model.Project
+	var total int64
 
 	query := r.db.WithContext(ctx).
 		Model(&model.Project{}).
@@ -57,11 +58,18 @@ func (r *ProjectRepo) FindAll(ctx context.Context, filter model.Project) ([]*mod
 		query = query.Where("name ILIKE ?", "%"+filter.Name+"%")
 	}
 
-	if err := query.Find(&projects).Error; err != nil {
-		return nil, err
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
-	return projects, nil
+	if err := query.
+		Limit(limit).
+		Offset(offset).
+		Find(&projects).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return projects, total, nil
 }
 
 func (r *ProjectRepo) Update(ctx context.Context, project model.Project) error {

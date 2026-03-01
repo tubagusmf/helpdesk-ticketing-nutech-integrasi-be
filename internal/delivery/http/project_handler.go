@@ -45,12 +45,50 @@ func (h *ProjectHandler) Create(c echo.Context) error {
 }
 
 func (h *ProjectHandler) FindAll(c echo.Context) error {
-	projects, err := h.projectUsecase.FindAll(c.Request().Context(), model.Project{})
+	name := c.QueryParam("name")
+	pageParam := c.QueryParam("page")
+	limitParam := c.QueryParam("limit")
+
+	page := 1
+	limit := 10
+
+	if pageParam != "" {
+		p, err := strconv.Atoi(pageParam)
+		if err == nil && p > 0 {
+			page = p
+		}
+	}
+
+	if limitParam != "" {
+		l, err := strconv.Atoi(limitParam)
+		if err == nil && l > 0 {
+			limit = l
+		}
+	}
+
+	offset := (page - 1) * limit
+
+	filter := model.Project{
+		Name: name,
+	}
+
+	projects, total, err := h.projectUsecase.FindAll(
+		c.Request().Context(),
+		filter,
+		limit,
+		offset,
+	)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, projects)
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"data":       projects,
+		"total":      total,
+		"page":       page,
+		"limit":      limit,
+		"total_page": (total + int64(limit) - 1) / int64(limit),
+	})
 }
 
 func (h *ProjectHandler) FindByID(c echo.Context) error {

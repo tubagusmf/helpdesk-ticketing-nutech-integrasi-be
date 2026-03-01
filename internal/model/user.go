@@ -12,8 +12,11 @@ type ContextAuthKey string
 const BearerAuthKey ContextAuthKey = "BearerAuth"
 
 type CustomClaims struct {
-	UserID int64 `json:"user_id"`
-	RoleID int64 `json:"role_id"`
+	UserID int64  `json:"user_id"`
+	RoleID int64  `json:"role_id"`
+	Role   string `json:"role"`
+	Email  string `json:"email"`
+	Name   string `json:"name"`
 	jwt.RegisteredClaims
 }
 
@@ -23,6 +26,7 @@ type User struct {
 	Email     string     `json:"email"`
 	Password  string     `json:"-"`
 	RoleID    int64      `json:"role_id"`
+	Role      Role       `json:"role"`
 	IsActive  bool       `json:"is_active"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -63,6 +67,7 @@ type CreateUserInput struct {
 	Email    string           `json:"email" validate:"required"`
 	Password string           `json:"password" validate:"required,min=3,max=50"`
 	RoleID   int64            `json:"role_id" validate:"required"`
+	Role     string           `json:"role"`
 	Projects []ProjectPayload `json:"projects"`
 }
 
