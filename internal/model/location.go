@@ -9,6 +9,7 @@ type Location struct {
 	ID        int64      `json:"id"`
 	Name      string     `json:"name"`
 	ProjectID int64      `json:"project_id"`
+	Project   Project    `json:"project"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"-"`
@@ -25,7 +26,7 @@ type UpdateLocationInput struct {
 }
 
 type ILocationRepository interface {
-	FindAll(ctx context.Context, location Location) ([]*Location, error)
+	FindAll(ctx context.Context, location Location, page int, limit int) ([]*Location, int64, error)
 	FindByID(ctx context.Context, id int64) (*Location, error)
 	Create(ctx context.Context, location Location) (*Location, error)
 	Update(ctx context.Context, location Location) error
@@ -33,7 +34,7 @@ type ILocationRepository interface {
 }
 
 type ILocationUsecase interface {
-	FindAll(ctx context.Context, location Location) ([]*Location, error)
+	FindAll(ctx context.Context, location Location, page int, limit int) ([]*Location, int64, error)
 	FindByID(ctx context.Context, id int64) (*Location, error)
 	Create(ctx context.Context, in LocationInput) (*Location, error)
 	Update(ctx context.Context, id int64, in UpdateLocationInput) error

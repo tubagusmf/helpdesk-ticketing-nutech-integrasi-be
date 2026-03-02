@@ -47,7 +47,6 @@ func (h *LocationHandler) Create(c echo.Context) error {
 func (h *LocationHandler) FindAll(c echo.Context) error {
 	var filter model.Location
 
-	// Optional query params
 	filter.Name = c.QueryParam("name")
 
 	if projectID := c.QueryParam("project_id"); projectID != "" {
@@ -58,14 +57,31 @@ func (h *LocationHandler) FindAll(c echo.Context) error {
 		filter.ProjectID = id
 	}
 
-	locations, err := h.locationUsecase.FindAll(c.Request().Context(), filter)
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 {
+		page = 1
+	}
+
+	limit := 10
+
+	locations, total, err := h.locationUsecase.FindAll(
+		c.Request().Context(),
+		filter,
+		page,
+		limit,
+	)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "locations fetched successfully",
-		"data":    locations,
+		"message":    "locations fetched successfully",
+		"data":       locations,
+		"page":       page,
+		"total_data": total,
+		"total_page": totalPage,
 	})
 }
 

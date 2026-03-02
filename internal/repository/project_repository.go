@@ -46,9 +46,11 @@ func (r *ProjectRepo) FindByID(ctx context.Context, id int64) (*model.Project, e
 	return &project, nil
 }
 
-func (r *ProjectRepo) FindAll(ctx context.Context, filter model.Project, limit, offset int) ([]*model.Project, int64, error) {
+func (r *ProjectRepo) FindAll(ctx context.Context, filter model.Project, page int, limit int) ([]*model.Project, int64, error) {
 	var projects []*model.Project
 	var total int64
+
+	offset := (page - 1) * limit
 
 	query := r.db.WithContext(ctx).
 		Model(&model.Project{}).

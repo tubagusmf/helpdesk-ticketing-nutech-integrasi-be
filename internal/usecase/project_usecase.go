@@ -41,12 +41,12 @@ func (u *ProjectUsecase) Create(ctx context.Context, in model.CreateProjectInput
 	return created, nil
 }
 
-func (u *ProjectUsecase) FindAll(ctx context.Context, filter model.Project, limit, offset int) ([]*model.Project, int64, error) {
+func (u *ProjectUsecase) FindAll(ctx context.Context, filter model.Project, page int, limit int) ([]*model.Project, int64, error) {
 	log := logrus.WithFields(logrus.Fields{
 		"filter": filter,
 	})
 
-	projects, total, err := u.projectRepo.FindAll(ctx, filter, limit, offset)
+	projects, total, err := u.projectRepo.FindAll(ctx, filter, page, limit)
 	if err != nil {
 		log.Error("Failed to fetch projects: ", err)
 		return nil, 0, err

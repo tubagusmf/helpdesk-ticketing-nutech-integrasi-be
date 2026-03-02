@@ -46,28 +46,42 @@ func (r *LocationRepo) FindByID(ctx context.Context, id int64) (*model.Location,
 	return &location, nil
 }
 
-func (r *LocationRepo) FindAll(ctx context.Context, filter model.Location) ([]*model.Location, error) {
+func (r *LocationRepo) FindAll(ctx context.Context, filter model.Location, page int, limit int) ([]*model.Location, int64, error) {
 	var locations []*model.Location
+	var total int64
+
+	offset := (page - 1) * limit
 
 	query := r.db.WithContext(ctx).
 		Model(&model.Location{}).
-		Where("deleted_at IS NULL")
+		Joins("LEFT JOIN projects ON projects.id = locations.project_id").
+		Where("locations.deleted_at IS NULL").
+		Preload("Project")
 
-	// Optional filter by name
 	if filter.Name != "" {
-		query = query.Where("name ILIKE ?", "%"+filter.Name+"%")
+		query = query.Where(`
+				locations.name ILIKE ? 
+				OR projects.name ILIKE ?
+			`, "%"+filter.Name+"%", "%"+filter.Name+"%")
 	}
 
-	// Optional filter by project_id
 	if filter.ProjectID != 0 {
-		query = query.Where("project_id = ?", filter.ProjectID)
+		query = query.Where("locations.project_id = ?", filter.ProjectID)
 	}
 
-	if err := query.Find(&locations).Error; err != nil {
-		return nil, err
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
-	return locations, nil
+	if err := query.
+		Limit(limit).
+		Offset(offset).
+		Order("locations.id DESC").
+		Find(&locations).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return locations, total, nil
 }
 
 func (r *LocationRepo) Update(ctx context.Context, location model.Location) error {

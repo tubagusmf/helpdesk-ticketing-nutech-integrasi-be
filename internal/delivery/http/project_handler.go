@@ -45,52 +45,37 @@ func (h *ProjectHandler) Create(c echo.Context) error {
 }
 
 func (h *ProjectHandler) FindAll(c echo.Context) error {
-	name := c.QueryParam("name")
-	pageParam := c.QueryParam("page")
-	limitParam := c.QueryParam("limit")
+	var filter model.Project
 
-	page := 1
+	filter.Name = c.QueryParam("name")
+
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 {
+		page = 1
+	}
+
 	limit := 10
-
-	if pageParam != "" {
-		p, err := strconv.Atoi(pageParam)
-		if err == nil && p > 0 {
-			page = p
-		}
-	}
-
-	if limitParam != "" {
-		l, err := strconv.Atoi(limitParam)
-		if err == nil && l > 0 {
-			limit = l
-		}
-	}
-
-	offset := (page - 1) * limit
-
-	filter := model.Project{
-		Name: name,
-	}
 
 	projects, total, err := h.projectUsecase.FindAll(
 		c.Request().Context(),
 		filter,
+		page,
 		limit,
-		offset,
 	)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":    "projects fetched successfully",
 		"data":       projects,
-		"total":      total,
 		"page":       page,
-		"limit":      limit,
-		"total_page": (total + int64(limit) - 1) / int64(limit),
+		"total_data": total,
+		"total_page": totalPage,
 	})
 }
-
 func (h *ProjectHandler) FindByID(c echo.Context) error {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {

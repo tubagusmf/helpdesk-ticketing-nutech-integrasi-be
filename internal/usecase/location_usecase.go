@@ -42,18 +42,18 @@ func (u *LocationUsecase) Create(ctx context.Context, in model.LocationInput) (*
 	return created, nil
 }
 
-func (u *LocationUsecase) FindAll(ctx context.Context, filter model.Location) ([]*model.Location, error) {
+func (u *LocationUsecase) FindAll(ctx context.Context, filter model.Location, page int, limit int) ([]*model.Location, int64, error) {
 	log := logrus.WithFields(logrus.Fields{
 		"filter": filter,
 	})
 
-	locations, err := u.locationRepo.FindAll(ctx, filter)
+	locations, total, err := u.locationRepo.FindAll(ctx, filter, page, limit)
 	if err != nil {
 		log.Error("Failed to fetch locations: ", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return locations, nil
+	return locations, total, nil
 }
 
 func (u *LocationUsecase) FindByID(ctx context.Context, id int64) (*model.Location, error) {
