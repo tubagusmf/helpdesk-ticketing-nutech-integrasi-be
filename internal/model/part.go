@@ -9,6 +9,7 @@ type Part struct {
 	ID        int64      `json:"id"`
 	Name      string     `json:"name"`
 	ProjectID int64      `json:"project_id"`
+	Project   Project    `json:"project"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"-"`
@@ -25,7 +26,7 @@ type UpdatePartInput struct {
 }
 
 type IPartRepository interface {
-	FindAll(ctx context.Context, filter Part) ([]*Part, error)
+	FindAll(ctx context.Context, part Part, page int, limit int) ([]*Part, int64, error)
 	FindByID(ctx context.Context, id int64) (*Part, error)
 	Create(ctx context.Context, part Part) (*Part, error)
 	Update(ctx context.Context, part Part) error
@@ -33,7 +34,7 @@ type IPartRepository interface {
 }
 
 type IPartUsecase interface {
-	FindAll(ctx context.Context, filter Part) ([]*Part, error)
+	FindAll(ctx context.Context, part Part, page int, limit int) ([]*Part, int64, error)
 	FindByID(ctx context.Context, id int64) (*Part, error)
 	Create(ctx context.Context, in PartInput) (*Part, error)
 	Update(ctx context.Context, id int64, in UpdatePartInput) error

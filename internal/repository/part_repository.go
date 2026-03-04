@@ -46,15 +46,23 @@ func (r *PartRepo) FindByID(ctx context.Context, id int64) (*model.Part, error) 
 	return &part, nil
 }
 
-func (r *PartRepo) FindAll(ctx context.Context, filter model.Part) ([]*model.Part, error) {
+func (r *PartRepo) FindAll(ctx context.Context, filter model.Part, page int, limit int) ([]*model.Part, int64, error) {
 	var parts []*model.Part
+	var total int64
+
+	offset := (page - 1) * limit
 
 	query := r.db.WithContext(ctx).
 		Model(&model.Part{}).
-		Where("deleted_at IS NULL")
+		Joins("LEFT JOIN projects ON projects.id = parts.project_id").
+		Where("parts.deleted_at IS NULL").
+		Preload("Project")
 
 	if filter.Name != "" {
-		query = query.Where("name ILIKE ?", "%"+filter.Name+"%")
+		query = query.Where(`
+				parts.name ILIKE ? 
+				OR projects.name ILIKE ?
+			`, "%"+filter.Name+"%", "%"+filter.Name+"%")
 	}
 
 	if filter.ProjectID != 0 {
@@ -62,10 +70,18 @@ func (r *PartRepo) FindAll(ctx context.Context, filter model.Part) ([]*model.Par
 	}
 
 	if err := query.Find(&parts).Error; err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return parts, nil
+	if err := query.
+		Limit(limit).
+		Offset(offset).
+		Order("parts.id DESC").
+		Find(&parts).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return parts, total, nil
 }
 
 func (r *PartRepo) Update(ctx context.Context, part model.Part) error {

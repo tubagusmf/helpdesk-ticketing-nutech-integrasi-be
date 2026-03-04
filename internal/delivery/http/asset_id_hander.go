@@ -57,14 +57,26 @@ func (h *AssetIDHandler) FindAll(c echo.Context) error {
 		filter.PartID = id
 	}
 
-	assets, err := h.assetUsecase.FindAll(c.Request().Context(), filter)
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 {
+		page = 1
+	}
+
+	limit := 10
+
+	assets, total, err := h.assetUsecase.FindAll(c.Request().Context(), filter, page, limit)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "asset_id fetched successfully",
-		"data":    assets,
+		"message":    "asset_ids fetched successfully",
+		"data":       assets,
+		"page":       page,
+		"total_data": total,
+		"total_page": totalPage,
 	})
 }
 

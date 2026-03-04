@@ -46,26 +46,44 @@ func (r *AssetIDRepo) FindByID(ctx context.Context, id int64) (*model.AssetID, e
 	return &asset, nil
 }
 
-func (r *AssetIDRepo) FindAll(ctx context.Context, filter model.AssetID) ([]*model.AssetID, error) {
+func (r *AssetIDRepo) FindAll(ctx context.Context, filter model.AssetID, page int, limit int) ([]*model.AssetID, int64, error) {
 	var assets []*model.AssetID
+	var total int64
 
 	query := r.db.WithContext(ctx).
 		Model(&model.AssetID{}).
-		Where("deleted_at IS NULL")
+		Joins("LEFT JOIN parts ON parts.id = asset_ids.part_id").
+		Joins("LEFT JOIN projects ON projects.id = parts.project_id").
+		Where("asset_ids.deleted_at IS NULL").
+		Preload("Part").
+		Preload("Part.Project")
 
 	if filter.Name != "" {
-		query = query.Where("name ILIKE ?", "%"+filter.Name+"%")
+		search := "%" + filter.Name + "%"
+		query = query.Where(`
+			asset_ids.name ILIKE ?
+			OR parts.name ILIKE ?
+			OR projects.name ILIKE ?
+		`, search, search, search)
 	}
 
 	if filter.PartID != 0 {
-		query = query.Where("part_id = ?", filter.PartID)
+		query = query.Where("asset_ids.part_id = ?", filter.PartID)
 	}
 
-	if err := query.Find(&assets).Error; err != nil {
-		return nil, err
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
 	}
 
-	return assets, nil
+	if err := query.
+		Limit(limit).
+		Offset((page - 1) * limit).
+		Order("asset_ids.id DESC").
+		Find(&assets).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return assets, total, nil
 }
 
 func (r *AssetIDRepo) Update(ctx context.Context, asset model.AssetID) error {

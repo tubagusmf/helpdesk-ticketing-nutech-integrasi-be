@@ -57,14 +57,31 @@ func (h *PartHandler) FindAll(c echo.Context) error {
 		filter.ProjectID = id
 	}
 
-	parts, err := h.partUsecase.FindAll(c.Request().Context(), filter)
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 {
+		page = 1
+	}
+
+	limit := 10
+
+	parts, total, err := h.partUsecase.FindAll(
+		c.Request().Context(),
+		filter,
+		page,
+		limit,
+	)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
+
 	return c.JSON(http.StatusOK, map[string]interface{}{
-		"message": "parts fetched successfully",
-		"data":    parts,
+		"message":    "parts fetched successfully",
+		"data":       parts,
+		"page":       page,
+		"total_data": total,
+		"total_page": totalPage,
 	})
 }
 

@@ -9,6 +9,7 @@ type AssetID struct {
 	ID        int64      `json:"id"`
 	Name      string     `json:"name"`
 	PartID    int64      `json:"part_id"`
+	Part      Part       `json:"part"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"-"`
@@ -25,7 +26,7 @@ type UpdateAssetIDInput struct {
 }
 
 type IAssetIDRepository interface {
-	FindAll(ctx context.Context, filter AssetID) ([]*AssetID, error)
+	FindAll(ctx context.Context, assetId AssetID, page int, limit int) ([]*AssetID, int64, error)
 	FindByID(ctx context.Context, id int64) (*AssetID, error)
 	Create(ctx context.Context, asset AssetID) (*AssetID, error)
 	Update(ctx context.Context, asset AssetID) error
@@ -33,7 +34,7 @@ type IAssetIDRepository interface {
 }
 
 type IAssetIDUsecase interface {
-	FindAll(ctx context.Context, filter AssetID) ([]*AssetID, error)
+	FindAll(ctx context.Context, assetId AssetID, page int, limit int) ([]*AssetID, int64, error)
 	FindByID(ctx context.Context, id int64) (*AssetID, error)
 	Create(ctx context.Context, in AssetIDInput) (*AssetID, error)
 	Update(ctx context.Context, id int64, in UpdateAssetIDInput) error

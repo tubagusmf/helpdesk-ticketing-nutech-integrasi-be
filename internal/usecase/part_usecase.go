@@ -38,16 +38,16 @@ func (u *PartUsecase) Create(ctx context.Context, in model.PartInput) (*model.Pa
 	return created, nil
 }
 
-func (u *PartUsecase) FindAll(ctx context.Context, filter model.Part) ([]*model.Part, error) {
+func (u *PartUsecase) FindAll(ctx context.Context, filter model.Part, page int, limit int) ([]*model.Part, int64, error) {
 	log := logrus.WithFields(logrus.Fields{"filter": filter})
 
-	locations, err := u.partRepo.FindAll(ctx, filter)
+	locations, total, err := u.partRepo.FindAll(ctx, filter, page, limit)
 	if err != nil {
 		log.Error("Failed to fetch parts: ", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return locations, nil
+	return locations, total, nil
 }
 
 func (u *PartUsecase) FindByID(ctx context.Context, id int64) (*model.Part, error) {

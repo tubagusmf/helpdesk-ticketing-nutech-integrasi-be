@@ -38,16 +38,16 @@ func (u *AssetIDUsecase) Create(ctx context.Context, in model.AssetIDInput) (*mo
 	return created, nil
 }
 
-func (u *AssetIDUsecase) FindAll(ctx context.Context, filter model.AssetID) ([]*model.AssetID, error) {
+func (u *AssetIDUsecase) FindAll(ctx context.Context, filter model.AssetID, page int, limit int) ([]*model.AssetID, int64, error) {
 	log := logrus.WithFields(logrus.Fields{"filter": filter})
 
-	assets, err := u.assetRepo.FindAll(ctx, filter)
+	assets, total, err := u.assetRepo.FindAll(ctx, filter, page, limit)
 	if err != nil {
 		log.Error("Failed to fetch asset_ids: ", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return assets, nil
+	return assets, total, nil
 }
 
 func (u *AssetIDUsecase) FindByID(ctx context.Context, id int64) (*model.AssetID, error) {
