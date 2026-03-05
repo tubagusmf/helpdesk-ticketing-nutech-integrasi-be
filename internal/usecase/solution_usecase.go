@@ -50,16 +50,16 @@ func (u *SolutionUsecase) FindByID(ctx context.Context, id int64) (*model.Soluti
 	return solution, nil
 }
 
-func (u *SolutionUsecase) FindAll(ctx context.Context, filter model.Solution) ([]*model.Solution, error) {
+func (u *SolutionUsecase) FindAll(ctx context.Context, filter model.Solution, page int, limit int) ([]*model.Solution, int64, error) {
 	log := logrus.WithFields(logrus.Fields{"filter": filter})
 
-	solutions, err := u.solutionRepo.FindAll(ctx, filter)
+	solutions, total, err := u.solutionRepo.FindAll(ctx, filter, page, limit)
 	if err != nil {
 		log.Error("Failed to fetch solutions: ", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return solutions, nil
+	return solutions, total, nil
 }
 
 func (u *SolutionUsecase) Update(ctx context.Context, id int64, in model.UpdateSolutionInput) error {

@@ -40,16 +40,16 @@ func (u *CauseUsecase) Create(ctx context.Context, in model.CreateCauseInput) (*
 	return created, nil
 }
 
-func (u *CauseUsecase) FindAll(ctx context.Context, filter model.Cause) ([]*model.Cause, error) {
+func (u *CauseUsecase) FindAll(ctx context.Context, filter model.Cause, page int, limit int) ([]*model.Cause, int64, error) {
 	log := logrus.WithFields(logrus.Fields{"filter": filter})
 
-	causes, err := u.causeRepo.FindAll(ctx, filter)
+	causes, total, err := u.causeRepo.FindAll(ctx, filter, page, limit)
 	if err != nil {
 		log.Error("Failed to fetch causes: ", err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return causes, nil
+	return causes, total, nil
 }
 
 func (u *CauseUsecase) FindByID(ctx context.Context, id int64) (*model.Cause, error) {

@@ -45,12 +45,39 @@ func (h *CauseHandler) Create(c echo.Context) error {
 }
 
 func (h *CauseHandler) FindAll(c echo.Context) error {
-	causes, err := h.causeUsecase.FindAll(c.Request().Context(), model.Cause{})
+	var filter model.Cause
+
+	filter.Name = c.QueryParam("name")
+
+	if partID := c.QueryParam("part_id"); partID != "" {
+		id, err := strconv.ParseInt(partID, 10, 64)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid part_id")
+		}
+		filter.PartID = id
+	}
+
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 {
+		page = 1
+	}
+
+	limit := 10
+
+	causes, total, err := h.causeUsecase.FindAll(c.Request().Context(), filter, page, limit)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, causes)
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":    "causes fetched successfully",
+		"data":       causes,
+		"page":       page,
+		"total_data": total,
+		"total_page": totalPage,
+	})
 }
 
 func (h *CauseHandler) FindByID(c echo.Context) error {

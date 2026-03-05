@@ -9,6 +9,7 @@ type Solution struct {
 	ID        int64      `json:"id" gorm:"primaryKey"`
 	Name      string     `json:"name"`
 	CauseID   int64      `json:"cause_id"`
+	Cause     Cause      `json:"cause"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at"`
@@ -27,7 +28,7 @@ type UpdateSolutionInput struct {
 type ISolutionRepository interface {
 	Create(ctx context.Context, solution Solution) (*Solution, error)
 	FindByID(ctx context.Context, id int64) (*Solution, error)
-	FindAll(ctx context.Context, filter Solution) ([]*Solution, error)
+	FindAll(ctx context.Context, solution Solution, page int, limit int) ([]*Solution, int64, error)
 	Update(ctx context.Context, solution Solution) error
 	Delete(ctx context.Context, id int64) error
 }
@@ -35,7 +36,7 @@ type ISolutionRepository interface {
 type ISolutionUsecase interface {
 	Create(ctx context.Context, in CreateSolutionInput) (*Solution, error)
 	FindByID(ctx context.Context, id int64) (*Solution, error)
-	FindAll(ctx context.Context, filter Solution) ([]*Solution, error)
+	FindAll(ctx context.Context, solution Solution, page int, limit int) ([]*Solution, int64, error)
 	Update(ctx context.Context, id int64, in UpdateSolutionInput) error
 	Delete(ctx context.Context, id int64) error
 }

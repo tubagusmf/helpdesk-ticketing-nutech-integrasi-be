@@ -9,6 +9,7 @@ type Cause struct {
 	ID        int64      `json:"id"`
 	Name      string     `json:"name"`
 	PartID    int64      `json:"part_id"`
+	Part      Part       `json:"part"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"deleted_at,omitempty"`
@@ -26,7 +27,7 @@ type UpdateCauseInput struct {
 
 type ICauseRepository interface {
 	Create(ctx context.Context, cause Cause) (*Cause, error)
-	FindAll(ctx context.Context, filter Cause) ([]*Cause, error)
+	FindAll(ctx context.Context, cause Cause, page int, limit int) ([]*Cause, int64, error)
 	FindByID(ctx context.Context, id int64) (*Cause, error)
 	Update(ctx context.Context, cause Cause) error
 	Delete(ctx context.Context, id int64) error
@@ -34,7 +35,7 @@ type ICauseRepository interface {
 
 type ICauseUsecase interface {
 	Create(ctx context.Context, in CreateCauseInput) (*Cause, error)
-	FindAll(ctx context.Context, filter Cause) ([]*Cause, error)
+	FindAll(ctx context.Context, cause Cause, page int, limit int) ([]*Cause, int64, error)
 	FindByID(ctx context.Context, id int64) (*Cause, error)
 	Update(ctx context.Context, id int64, in UpdateCauseInput) error
 	Delete(ctx context.Context, id int64) error
