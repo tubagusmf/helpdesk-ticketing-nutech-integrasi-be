@@ -14,15 +14,24 @@ import (
 func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		authHeader := c.Request().Header.Get(echo.HeaderAuthorization)
+
+		if authHeader == "" {
+			return echo.NewHTTPError(http.StatusUnauthorized, "missing token")
+		}
+
 		splitAuth := strings.Split(authHeader, " ")
 		if len(splitAuth) != 2 || splitAuth[0] != "Bearer" {
-			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token format")
 		}
 
 		accessToken := splitAuth[1]
 
 		var claim model.CustomClaims
-		if err := helper.DecodeToken(accessToken, &claim); err != nil {
+		err := helper.DecodeToken(accessToken, &claim)
+		if err != nil {
+			if strings.Contains(err.Error(), "expired") {
+				return echo.NewHTTPError(http.StatusUnauthorized, "token expired")
+			}
 			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 		}
 

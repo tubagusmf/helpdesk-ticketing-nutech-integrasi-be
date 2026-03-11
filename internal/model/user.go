@@ -36,7 +36,7 @@ type User struct {
 }
 
 type IUserRepository interface {
-	FindAll(ctx context.Context, user User) ([]*User, error)
+	FindAll(ctx context.Context, user User, page int, limit int) ([]*User, int64, error)
 	FindByID(ctx context.Context, id int64) (*User, error)
 	FindByEmail(ctx context.Context, email string) (*User, error)
 	Create(ctx context.Context, user User) (*User, error)
@@ -45,7 +45,7 @@ type IUserRepository interface {
 }
 
 type IUserUsecase interface {
-	FindAll(ctx context.Context, user User) ([]*User, error)
+	FindAll(ctx context.Context, user User, page int, limit int) ([]*User, int64, error)
 	FindByID(ctx context.Context, id int64) (*User, error)
 	Login(ctx context.Context, in LoginInput) (token string, err error)
 	Create(ctx context.Context, in CreateUserInput) (token string, err error)
@@ -74,7 +74,7 @@ type CreateUserInput struct {
 type UpdateUserInput struct {
 	Name     string           `json:"name" validate:"required"`
 	Email    string           `json:"email" validate:"required"`
-	Password string           `json:"password" validate:"required,min=3,max=50"`
+	Password string           `json:"password" validate:"omitempty,min=3,max=50"`
 	RoleID   int64            `json:"role_id" validate:"required"`
 	Projects []ProjectPayload `json:"projects"`
 }

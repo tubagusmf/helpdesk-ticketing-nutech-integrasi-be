@@ -64,12 +64,41 @@ func (h *UserHandler) Create(c echo.Context) error {
 }
 
 func (h *UserHandler) FindAll(c echo.Context) error {
-	users, err := h.userUsecase.FindAll(c.Request().Context(), model.User{})
+	var filter model.User
+
+	filter.Name = c.QueryParam("name")
+
+	if email := c.QueryParam("email"); email != "" {
+		filter.Email = email
+	}
+
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 {
+		page = 1
+	}
+
+	limit := 10
+
+	users, total, err := h.userUsecase.FindAll(
+		c.Request().Context(),
+		filter,
+		page,
+		limit,
+	)
+
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, users)
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message":    "users fetched successfully",
+		"data":       users,
+		"page":       page,
+		"total_data": total,
+		"total_page": totalPage,
+	})
 }
 
 func (h *UserHandler) FindByID(c echo.Context) error {

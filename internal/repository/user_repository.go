@@ -56,6 +56,7 @@ func (r *UserRepo) FindByID(ctx context.Context, id int64) (*model.User, error) 
 	var user model.User
 
 	err := r.db.WithContext(ctx).
+		Preload("Role").
 		Preload("Projects").
 		Where("id = ? AND deleted_at IS NULL", id).
 		First(&user).Error
@@ -88,26 +89,44 @@ func (r *UserRepo) FindByEmail(ctx context.Context, email string) (*model.User, 
 	return &user, nil
 }
 
-func (r *UserRepo) FindAll(ctx context.Context, filter model.User) ([]*model.User, error) {
+func (r *UserRepo) FindAll(ctx context.Context, filter model.User, page int, limit int) ([]*model.User, int64, error) {
 	var users []*model.User
+	var total int64
+
+	offset := (page - 1) * limit
 
 	query := r.db.WithContext(ctx).
 		Model(&model.User{}).
-		Where("deleted_at IS NULL")
-
-	if filter.Email != "" {
-		query = query.Where("email ILIKE ?", "%"+filter.Email+"%")
-	}
+		Joins("LEFT JOIN roles ON roles.id = users.role_id").
+		Where("users.deleted_at IS NULL").
+		Preload("Role").
+		Preload("Projects")
 
 	if filter.Name != "" {
-		query = query.Where("name ILIKE ?", "%"+filter.Name+"%")
+		query = query.Where(`
+			users.name ILIKE ?
+			OR roles.name ILIKE ?
+		`, "%"+filter.Name+"%", "%"+filter.Name+"%")
 	}
 
-	if err := query.Find(&users).Error; err != nil {
-		return nil, err
+	if filter.Email != "" {
+		query = query.Where("users.email ILIKE ?", "%"+filter.Email+"%")
 	}
 
-	return users, nil
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := query.
+		Limit(limit).
+		Offset(offset).
+		Order("users.id DESC").
+		Find(&users).Error; err != nil {
+
+		return nil, 0, err
+	}
+
+	return users, total, nil
 }
 
 func (r *UserRepo) Update(ctx context.Context, user model.User) error {

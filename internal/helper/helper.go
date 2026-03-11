@@ -29,7 +29,7 @@ func GenerateToken(user model.User) (string, error) {
 		Email:  user.Email,
 		Name:   user.Name,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
 		},
 	}
 
@@ -37,9 +37,22 @@ func GenerateToken(user model.User) (string, error) {
 	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }
 
-func DecodeToken(token string, claim *model.CustomClaims) (err error) {
-	jwt.ParseWithClaims(token, claim, func(t *jwt.Token) (interface{}, error) {
+func DecodeToken(tokenString string, claim *model.CustomClaims) error {
+	token, err := jwt.ParseWithClaims(tokenString, claim, func(t *jwt.Token) (interface{}, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, jwt.ErrTokenSignatureInvalid
+		}
+
 		return []byte(config.JWTSigningKey()), nil
 	})
-	return
+
+	if err != nil {
+		return err
+	}
+
+	if !token.Valid {
+		return jwt.ErrTokenInvalidClaims
+	}
+
+	return nil
 }

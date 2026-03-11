@@ -96,18 +96,18 @@ func (u *UserUsecase) Create(ctx context.Context, in model.CreateUserInput) (str
 	return accessToken, nil
 }
 
-func (u *UserUsecase) FindAll(ctx context.Context, filter model.User) ([]*model.User, error) {
+func (u *UserUsecase) FindAll(ctx context.Context, filter model.User, page int, limit int) ([]*model.User, int64, error) {
 	log := logrus.WithFields(logrus.Fields{
 		"filter": filter,
 	})
 
-	users, err := u.userRepo.FindAll(ctx, filter)
+	users, total, err := u.userRepo.FindAll(ctx, filter, page, limit)
 	if err != nil {
 		log.Error(err)
-		return nil, err
+		return nil, 0, err
 	}
 
-	return users, nil
+	return users, total, nil
 }
 
 func (u *UserUsecase) FindByID(ctx context.Context, id int64) (*model.User, error) {
@@ -139,15 +139,18 @@ func (u *UserUsecase) Update(ctx context.Context, id int64, in model.UpdateUserI
 		return err
 	}
 
-	hashed, err := helper.HashRequestPassword(in.Password)
-	if err != nil {
-		return err
-	}
-
 	user.Name = in.Name
 	user.Email = in.Email
-	user.Password = hashed
 	user.RoleID = in.RoleID
+
+	if in.Password != "" {
+		hashed, err := helper.HashRequestPassword(in.Password)
+		if err != nil {
+			return err
+		}
+
+		user.Password = hashed
+	}
 
 	var projects []model.Project
 	for _, p := range in.Projects {
