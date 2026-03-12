@@ -97,20 +97,32 @@ func (r *UserRepo) FindAll(ctx context.Context, filter model.User, page int, lim
 
 	query := r.db.WithContext(ctx).
 		Model(&model.User{}).
-		Joins("LEFT JOIN roles ON roles.id = users.role_id").
 		Where("users.deleted_at IS NULL").
 		Preload("Role").
 		Preload("Projects")
 
 	if filter.Name != "" {
-		query = query.Where(`
-			users.name ILIKE ?
-			OR roles.name ILIKE ?
-		`, "%"+filter.Name+"%", "%"+filter.Name+"%")
-	}
+		search := "%" + filter.Name + "%"
 
-	if filter.Email != "" {
-		query = query.Where("users.email ILIKE ?", "%"+filter.Email+"%")
+		query = query.Where(`
+		(
+			users.name ILIKE ?
+			OR users.email ILIKE ?
+			OR EXISTS (
+				SELECT 1
+				FROM user_projects
+				JOIN projects ON projects.id = user_projects.project_id
+				WHERE user_projects.user_id = users.id
+				AND projects.name ILIKE ?
+			)
+			OR EXISTS (
+				SELECT 1
+				FROM roles
+				WHERE roles.id = users.role_id
+				AND roles.name ILIKE ?
+			)
+		)
+		`, search, search, search, search)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -122,7 +134,6 @@ func (r *UserRepo) FindAll(ctx context.Context, filter model.User, page int, lim
 		Offset(offset).
 		Order("users.id DESC").
 		Find(&users).Error; err != nil {
-
 		return nil, 0, err
 	}
 
