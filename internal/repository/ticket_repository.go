@@ -47,26 +47,34 @@ func (r *TicketRepo) FindByID(ctx context.Context, id int64) (*model.Ticket, err
 	return &ticket, nil
 }
 
-func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket) ([]*model.Ticket, error) {
-	var tickets []*model.Ticket
+func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket) ([]*model.TicketResponse, error) {
+	var tickets []*model.TicketResponse
 
-	query := r.db.WithContext(ctx).
-		Model(&model.Ticket{}).
-		Where("deleted_at IS NULL")
+	err := r.db.WithContext(ctx).
+		Table("tickets").
+		Select(`
+			tickets.id,
+			tickets.ticket_code,
+			tickets.priority,
+			tickets.status,
+			tickets.description,
+			tickets.created_at,
+			tickets.due_at,
 
-	if filter.Status != "" {
-		query = query.Where("status = ?", filter.Status)
-	}
+			projects.name as project_name,
+			locations.name as location_name,
+			asset_ids.name as asset_code,
+			users.name as reporter_name
+		`).
+		Joins("LEFT JOIN projects ON projects.id = tickets.project_id").
+		Joins("LEFT JOIN locations ON locations.id = tickets.location_id").
+		Joins("LEFT JOIN asset_ids ON asset_ids.id = tickets.asset_id").
+		Joins("LEFT JOIN users ON users.id = tickets.reporter_id").
+		Where("tickets.deleted_at IS NULL").
+		Order("tickets.created_at DESC").
+		Scan(&tickets).Error
 
-	if filter.Priority != "" {
-		query = query.Where("priority = ?", filter.Priority)
-	}
-
-	if err := query.Find(&tickets).Error; err != nil {
-		return nil, err
-	}
-
-	return tickets, nil
+	return tickets, err
 }
 
 func (r *TicketRepo) Update(ctx context.Context, ticket model.Ticket) error {

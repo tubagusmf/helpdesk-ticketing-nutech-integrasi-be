@@ -28,7 +28,7 @@ func NewTicketUsecase(
 	}
 }
 
-func (u *TicketUsecase) FindAll(ctx context.Context, filter model.Ticket) ([]*model.Ticket, error) {
+func (u *TicketUsecase) FindAll(ctx context.Context, filter model.Ticket) ([]*model.TicketResponse, error) {
 	log := logrus.WithFields(logrus.Fields{
 		"filter": filter,
 	})
