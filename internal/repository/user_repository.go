@@ -125,6 +125,14 @@ func (r *UserRepo) FindAll(ctx context.Context, filter model.User, page int, lim
 		`, search, search, search, search)
 	}
 
+	if filter.RoleID != 0 {
+		query = query.Where("users.role_id = ?", filter.RoleID)
+	}
+
+	if filter.IsActive {
+		query = query.Where("users.is_active = ?", true)
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}

@@ -1,10 +1,13 @@
 package http
 
 import (
+	"fmt"
+	"log"
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 )
 
@@ -27,20 +30,64 @@ func NewTicketHandler(e *echo.Echo, ticketUsecase model.ITicketUsecase) {
 }
 
 func (h *TicketHandler) Create(c echo.Context) error {
-	var body model.CreateTicketInput
+	claim, ok := c.Request().Context().
+		Value(model.BearerAuthKey).(*model.CustomClaims)
 
-	if err := c.Bind(&body); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
-	}
-
-	claim, ok := c.Request().Context().Value(model.BearerAuthKey).(*model.CustomClaims)
 	if !ok || claim == nil {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	userID := claim.UserID
+	projectID, _ := strconv.ParseInt(c.FormValue("project_id"), 10, 64)
+	locationID, _ := strconv.ParseInt(c.FormValue("location_id"), 10, 64)
+	partID, _ := strconv.ParseInt(c.FormValue("part_id"), 10, 64)
+	assetID, _ := strconv.ParseInt(c.FormValue("asset_id"), 10, 64)
+	assignedID, _ := strconv.ParseInt(c.FormValue("assigned_to_id"), 10, 64)
 
-	ticket, err := h.ticketUsecase.Create(c.Request().Context(), userID, body)
+	priority := model.TicketPriority(c.FormValue("priority"))
+	description := c.FormValue("description")
+
+	input := model.CreateTicketInput{
+		ProjectID:    projectID,
+		LocationID:   locationID,
+		PartID:       partID,
+		AssetID:      assetID,
+		AssignedToID: assignedID,
+		Priority:     priority,
+		Description:  description,
+	}
+
+	var attachmentURL *string
+
+	fileHeader, err := c.FormFile("attachment")
+	if err == nil {
+
+		if fileHeader.Size > 2*1024*1024 {
+			return echo.NewHTTPError(http.StatusBadRequest, "file max 2MB")
+		}
+
+		file, err := fileHeader.Open()
+		if err != nil {
+			return echo.NewHTTPError(http.StatusInternalServerError, "failed to open file")
+		}
+		defer file.Close()
+
+		folder := fmt.Sprintf("tickets/project_%d", projectID)
+		url, err := helper.UploadImage(file, folder)
+		if err != nil {
+			log.Println("Failed to upload image:", err)
+			return echo.NewHTTPError(http.StatusInternalServerError, "upload failed")
+		}
+
+		attachmentURL = &url
+	}
+
+	ticket, err := h.ticketUsecase.Create(
+		c.Request().Context(),
+		claim.UserID,
+		input,
+		attachmentURL,
+	)
+
 	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}

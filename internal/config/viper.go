@@ -12,15 +12,8 @@ func LoadWithViper() {
 	viper.AddConfigPath(".")
 
 	if err := viper.ReadInConfig(); err != nil {
-		log.Fatalf("Error reading config.yml: %v", err)
+		log.Println("Config.yml not found, skipping...")
 	}
 
-	// viper.SetConfigFile(".env")
-	// viper.SetConfigType("env")
-
-	// if err := viper.MergeInConfig(); err != nil {
-	// 	log.Fatalf("Error reading .env: %v", err)
-	// }
-
-	// viper.AutomaticEnv()
+	viper.AutomaticEnv()
 }

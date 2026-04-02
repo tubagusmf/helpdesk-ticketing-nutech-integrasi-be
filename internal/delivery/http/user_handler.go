@@ -72,6 +72,15 @@ func (h *UserHandler) FindAll(c echo.Context) error {
 		filter.Email = email
 	}
 
+	if isActive := c.QueryParam("is_active"); isActive == "true" {
+		filter.IsActive = true
+	}
+
+	if roleID := c.QueryParam("role_id"); roleID != "" {
+		id, _ := strconv.ParseInt(roleID, 10, 64)
+		filter.RoleID = id
+	}
+
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page == 0 {
 		page = 1

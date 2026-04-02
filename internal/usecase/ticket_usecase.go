@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -56,7 +57,7 @@ func (u *TicketUsecase) FindByID(ctx context.Context, id int64) (*model.Ticket, 
 	return ticket, nil
 }
 
-func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.CreateTicketInput) (*model.Ticket, error) {
+func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.CreateTicketInput, attachmentPath *string) (*model.Ticket, error) {
 	log := logrus.WithFields(logrus.Fields{
 		"in": in,
 	})
@@ -66,12 +67,30 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		return nil, err
 	}
 
-	if in.DueAt.Before(time.Now()) {
-		return nil, errors.New("due date cannot be in the past")
+	if err := u.validateStaff(in.AssignedToID); err != nil {
+		return nil, err
+	}
+
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	now := time.Now().In(loc)
+
+	var dueAt time.Time
+
+	switch in.Priority {
+	case model.PriorityUrgent:
+		dueAt = now.Add(15 * time.Minute)
+	case model.PriorityHigh:
+		dueAt = now.Add(1 * time.Hour)
+	case model.PriorityMedium:
+		dueAt = now.Add(2 * time.Hour)
+	case model.PriorityLow:
+		dueAt = now.Add(4 * time.Hour)
+	default:
+		dueAt = now.Add(2 * time.Hour)
 	}
 
 	ticket := model.Ticket{
-		TicketCode:   in.TicketCode,
+		TicketCode:   generateTicketCode(),
 		ProjectID:    in.ProjectID,
 		LocationID:   in.LocationID,
 		PartID:       in.PartID,
@@ -80,8 +99,9 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		AssignedToID: in.AssignedToID,
 		Priority:     in.Priority,
 		Description:  in.Description,
-		DueAt:        in.DueAt,
+		DueAt:        dueAt,
 		Status:       model.StatusOpen,
+		Attachment:   attachmentPath,
 	}
 
 	tx := u.db.WithContext(ctx).Begin()
@@ -199,4 +219,28 @@ func isValidStatus(status model.TicketStatus) bool {
 	default:
 		return false
 	}
+}
+
+func generateTicketCode() string {
+	now := time.Now()
+	return fmt.Sprintf("TCK-%d%02d%02d-%d",
+		now.Year(),
+		now.Month(),
+		now.Day(),
+		now.Unix()%10000,
+	)
+}
+
+func (u *TicketUsecase) validateStaff(userID int64) error {
+	var user model.User
+
+	if err := u.db.First(&user, userID).Error; err != nil {
+		return err
+	}
+
+	if user.RoleID != 2 {
+		return errors.New("assigned user must be STAFF")
+	}
+
+	return nil
 }

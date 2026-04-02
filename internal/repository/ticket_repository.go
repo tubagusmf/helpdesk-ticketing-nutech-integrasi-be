@@ -53,23 +53,26 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket) ([]*model
 	err := r.db.WithContext(ctx).
 		Table("tickets").
 		Select(`
-			tickets.id,
-			tickets.ticket_code,
-			tickets.priority,
-			tickets.status,
-			tickets.description,
-			tickets.created_at,
-			tickets.due_at,
+		tickets.id,
+		tickets.ticket_code,
+		tickets.priority,
+		tickets.status,
+		tickets.description,
+		tickets.created_at,
+		tickets.due_at,
 
-			projects.name as project_name,
-			locations.name as location_name,
-			asset_ids.name as asset_code,
-			users.name as reporter_name
-		`).
+		projects.name as project_name,
+		locations.name as location_name,
+		asset_ids.name as asset_code,
+
+		reporter.name as reporter_name,
+		assigned.name as assigned_to_name
+	`).
 		Joins("LEFT JOIN projects ON projects.id = tickets.project_id").
 		Joins("LEFT JOIN locations ON locations.id = tickets.location_id").
 		Joins("LEFT JOIN asset_ids ON asset_ids.id = tickets.asset_id").
-		Joins("LEFT JOIN users ON users.id = tickets.reporter_id").
+		Joins("LEFT JOIN users as reporter ON reporter.id = tickets.reporter_id").
+		Joins("LEFT JOIN users as assigned ON assigned.id = tickets.assigned_to_id").
 		Where("tickets.deleted_at IS NULL").
 		Order("tickets.created_at DESC").
 		Scan(&tickets).Error

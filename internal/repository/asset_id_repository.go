@@ -78,7 +78,7 @@ func (r *AssetIDRepo) FindAll(ctx context.Context, filter model.AssetID, page in
 	if err := query.
 		Limit(limit).
 		Offset((page - 1) * limit).
-		Order("asset_ids.id DESC").
+		Order("asset_ids.id ASC").
 		Find(&assets).Error; err != nil {
 		return nil, 0, err
 	}

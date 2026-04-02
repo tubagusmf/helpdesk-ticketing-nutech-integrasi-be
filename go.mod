@@ -3,8 +3,10 @@ module github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be
 go 1.24.0
 
 require (
+	github.com/cloudinary/cloudinary-go/v2 v2.15.0
 	github.com/go-playground/validator/v10 v10.30.1
 	github.com/golang-jwt/jwt/v5 v5.3.1
+	github.com/joho/godotenv v1.5.1
 	github.com/labstack/echo/v4 v4.15.0
 	github.com/lib/pq v1.11.2
 	github.com/rubenv/sql-migrate v1.8.1
@@ -17,12 +19,15 @@ require (
 )
 
 require (
+	github.com/creasty/defaults v1.7.0 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.12 // indirect
 	github.com/go-gorp/gorp/v3 v3.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
+	github.com/google/uuid v1.5.0 // indirect
+	github.com/gorilla/schema v1.4.1 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect

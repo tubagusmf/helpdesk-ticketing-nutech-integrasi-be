@@ -5,8 +5,10 @@ import (
 	"net/http"
 	"sync"
 
+	"github.com/joho/godotenv"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/db"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/repository"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/usecase"
 
@@ -30,6 +32,24 @@ var serverCMD = &cobra.Command{
 }
 
 func httpServer(cmd *cobra.Command, args []string) {
+
+	err := godotenv.Load()
+	if err != nil {
+		log.Println(".env file not found")
+	}
+
+	config.LoadWithViper()
+
+	err = helper.InitCloudinary(
+		config.CloudinaryCloudName(),
+		config.CloudinaryAPIKey(),
+		config.CloudinaryAPISecret(),
+	)
+
+	if err != nil {
+		log.Fatalf("Cloudinary init failed: %v", err)
+	}
+
 	config.LoadWithViper()
 
 	postgresDB := db.NewPostgres()
