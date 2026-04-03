@@ -47,37 +47,86 @@ func (r *TicketRepo) FindByID(ctx context.Context, id int64) (*model.Ticket, err
 	return &ticket, nil
 }
 
-func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket) ([]*model.TicketResponse, error) {
+func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search string, page int, limit int) ([]*model.TicketResponse, int64, error) {
 	var tickets []*model.TicketResponse
+	var total int64
 
-	err := r.db.WithContext(ctx).
+	offset := (page - 1) * limit
+
+	query := r.db.WithContext(ctx).
 		Table("tickets").
-		Select(`
-		tickets.id,
-		tickets.ticket_code,
-		tickets.priority,
-		tickets.status,
-		tickets.description,
-		tickets.created_at,
-		tickets.due_at,
-
-		projects.name as project_name,
-		locations.name as location_name,
-		asset_ids.name as asset_code,
-
-		reporter.name as reporter_name,
-		assigned.name as assigned_to_name
-	`).
 		Joins("LEFT JOIN projects ON projects.id = tickets.project_id").
 		Joins("LEFT JOIN locations ON locations.id = tickets.location_id").
 		Joins("LEFT JOIN asset_ids ON asset_ids.id = tickets.asset_id").
 		Joins("LEFT JOIN users as reporter ON reporter.id = tickets.reporter_id").
 		Joins("LEFT JOIN users as assigned ON assigned.id = tickets.assigned_to_id").
-		Where("tickets.deleted_at IS NULL").
-		Order("tickets.created_at DESC").
-		Scan(&tickets).Error
+		Where("tickets.deleted_at IS NULL")
 
-	return tickets, err
+	if search != "" {
+		s := "%" + search + "%"
+
+		query = query.Where(`
+			(
+				tickets.ticket_code ILIKE ?
+				OR tickets.description ILIKE ?
+				OR reporter.name ILIKE ?
+				OR assigned.name ILIKE ?
+				OR projects.name ILIKE ?
+			)
+		`, s, s, s, s, s)
+	}
+
+	if filter.ProjectID != 0 {
+		query = query.Where("tickets.project_id = ?", filter.ProjectID)
+	}
+
+	if filter.AssignedToID != 0 {
+		query = query.Where("tickets.assigned_to_id = ?", filter.AssignedToID)
+	}
+
+	if filter.ReporterID != 0 {
+		query = query.Where("tickets.reporter_id = ?", filter.ReporterID)
+	}
+
+	if filter.Priority != "" {
+		query = query.Where("tickets.priority = ?", filter.Priority)
+	}
+
+	if filter.Status != "" {
+		query = query.Where("tickets.status = ?", filter.Status)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := query.
+		Select(`
+			tickets.id,
+			tickets.ticket_code,
+			tickets.priority,
+			tickets.status,
+			tickets.description,
+			tickets.created_at,
+			tickets.due_at,
+			tickets.reporter_id,
+
+			projects.name as project_name,
+			locations.name as location_name,
+			asset_ids.name as asset_code,
+
+			reporter.name as reporter_name,
+			assigned.name as assigned_to_name
+		`).
+		Order("tickets.created_at DESC").
+		Limit(limit).
+		Offset(offset).
+		Scan(&tickets).Error; err != nil {
+
+		return nil, 0, err
+	}
+
+	return tickets, total, nil
 }
 
 func (r *TicketRepo) Update(ctx context.Context, ticket model.Ticket) error {

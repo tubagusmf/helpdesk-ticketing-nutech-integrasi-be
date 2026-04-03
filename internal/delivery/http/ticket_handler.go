@@ -99,12 +99,48 @@ func (h *TicketHandler) Create(c echo.Context) error {
 }
 
 func (h *TicketHandler) FindAll(c echo.Context) error {
-	tickets, err := h.ticketUsecase.FindAll(c.Request().Context(), model.Ticket{})
+	projectID, _ := strconv.ParseInt(c.QueryParam("project_id"), 10, 64)
+	staffID, _ := strconv.ParseInt(c.QueryParam("assigned_to_id"), 10, 64)
+	reporterID, _ := strconv.ParseInt(c.QueryParam("reporter_id"), 10, 64)
+
+	priority := c.QueryParam("priority")
+	status := c.QueryParam("status")
+	search := c.QueryParam("search")
+
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page == 0 {
+		page = 1
+	}
+	limit := 10
+
+	filter := model.Ticket{
+		ProjectID:    projectID,
+		AssignedToID: staffID,
+		ReporterID:   reporterID,
+		Priority:     model.TicketPriority(priority),
+		Status:       model.TicketStatus(status),
+	}
+
+	tickets, total, err := h.ticketUsecase.FindAll(
+		c.Request().Context(),
+		filter,
+		search,
+		page,
+		limit,
+	)
+
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, tickets)
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"data":       tickets,
+		"page":       page,
+		"total_data": total,
+		"total_page": totalPage,
+	})
 }
 
 func (h *TicketHandler) FindByID(c echo.Context) error {
