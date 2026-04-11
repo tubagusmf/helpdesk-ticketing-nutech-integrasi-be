@@ -154,40 +154,49 @@ func (h *TicketHandler) FindByID(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	}
 
+	fmt.Println("HANDLER ATTACHMENT:", ticket.Attachment)
+
 	return c.JSON(http.StatusOK, ticket)
 }
 
 func (h *TicketHandler) UpdateStatus(c echo.Context) error {
-	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	idParam := c.Param("id")
+
+	ticketID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid ticket id")
 	}
 
-	var body model.UpdateTicketStatusInput
-	if err := c.Bind(&body); err != nil {
+	var req model.UpdateTicketStatusInput
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+
+	if err := c.Validate(req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
-	claim, ok := c.Request().Context().
-		Value(model.BearerAuthKey).(*model.CustomClaims)
-
-	if !ok || claim == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user not found")
 	}
 
+	claim := claimValue.(*model.CustomClaims)
 	userID := claim.UserID
 
-	if err := h.ticketUsecase.UpdateStatus(
+	err = h.ticketUsecase.UpdateStatus(
 		c.Request().Context(),
-		id,
+		ticketID,
 		userID,
-		body,
-	); err != nil {
+		req,
+	)
+
+	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{
-		"message": "ticket status updated successfully",
+		"message": "status updated successfully",
 	})
 }
 

@@ -50,20 +50,19 @@ func (r *SolutionRepo) FindAll(ctx context.Context, filter model.Solution, page 
 	var solutions []*model.Solution
 	var total int64
 
-	offset := (page - 1) * limit
-
 	query := r.db.WithContext(ctx).
 		Model(&model.Solution{}).
 		Joins("LEFT JOIN causes ON causes.id = solutions.cause_id").
 		Where("solutions.deleted_at IS NULL").
 		Preload("Cause")
 
-	if filter.Name != "" {
-		query = query.Where("solutions.name ILIKE ? OR causes.name ILIKE ?", "%"+filter.Name+"%", "%"+filter.Name+"%")
-	}
-
 	if filter.CauseID != 0 {
 		query = query.Where("solutions.cause_id = ?", filter.CauseID)
+	}
+
+	if filter.Name != "" {
+		search := "%" + filter.Name + "%"
+		query = query.Where("solutions.name ILIKE ?", search)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -72,7 +71,7 @@ func (r *SolutionRepo) FindAll(ctx context.Context, filter model.Solution, page 
 
 	if err := query.
 		Limit(limit).
-		Offset(offset).
+		Offset((page - 1) * limit).
 		Find(&solutions).Error; err != nil {
 		return nil, 0, err
 	}

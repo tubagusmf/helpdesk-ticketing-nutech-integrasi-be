@@ -2,7 +2,6 @@ package repository
 
 import (
 	"context"
-	"errors"
 	"time"
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
@@ -36,10 +35,6 @@ func (r *TicketRepo) FindByID(ctx context.Context, id int64) (*model.Ticket, err
 		Where("id = ? AND deleted_at IS NULL", id).
 		First(&ticket).Error
 
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, errors.New("ticket not found")
-	}
-
 	if err != nil {
 		return nil, err
 	}
@@ -57,6 +52,7 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		Table("tickets").
 		Joins("LEFT JOIN projects ON projects.id = tickets.project_id").
 		Joins("LEFT JOIN locations ON locations.id = tickets.location_id").
+		Joins("LEFT JOIN parts ON parts.id = tickets.part_id").
 		Joins("LEFT JOIN asset_ids ON asset_ids.id = tickets.asset_id").
 		Joins("LEFT JOIN users as reporter ON reporter.id = tickets.reporter_id").
 		Joins("LEFT JOIN users as assigned ON assigned.id = tickets.assigned_to_id").
@@ -110,11 +106,14 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 			tickets.created_at,
 			tickets.due_at,
 			tickets.reporter_id,
+			tickets.part_id,      
+			tickets.asset_id,         
+			tickets.attachment,
 
 			projects.name as project_name,
 			locations.name as location_name,
+			parts.name as part_name,  
 			asset_ids.name as asset_code,
-
 			reporter.name as reporter_name,
 			assigned.name as assigned_to_name
 		`).

@@ -36,6 +36,8 @@ type Ticket struct {
 	Attachment   *string        `json:"attachment"`
 	DueAt        time.Time      `json:"due_at"`
 	ResolvedAt   *time.Time     `json:"resolved_at"`
+	PausedAt     *time.Time     `json:"paused_at"`
+	TotalPaused  int64          `json:"total_paused"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
@@ -48,9 +50,13 @@ type TicketResponse struct {
 	Priority       string    `json:"priority"`
 	Status         string    `json:"status"`
 	Description    string    `json:"description"`
+	Attachment     *string   `json:"attachment_url"`
 	ProjectName    string    `json:"project_name"`
 	LocationName   string    `json:"location_name"`
 	AssetCode      string    `json:"asset_code"`
+	PartID         int64     `json:"part_id"`
+	PartName       string    `json:"part_name"`
+	AssetID        int64     `json:"asset_id"`
 	ReporterName   string    `json:"reporter_name"`
 	ReporterID     int64     `json:"reporter_id"`
 	AssignedToName string    `json:"assigned_to_name"`

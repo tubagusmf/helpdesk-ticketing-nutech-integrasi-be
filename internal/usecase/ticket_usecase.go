@@ -45,15 +45,12 @@ func (u *TicketUsecase) FindAll(ctx context.Context, filter model.Ticket, search
 }
 
 func (u *TicketUsecase) FindByID(ctx context.Context, id int64) (*model.Ticket, error) {
-	log := logrus.WithFields(logrus.Fields{
-		"id": id,
-	})
-
 	ticket, err := u.ticketRepo.FindByID(ctx, id)
 	if err != nil {
-		log.Error("Failed to find ticket: ", err)
 		return nil, err
 	}
+
+	fmt.Println("USECASE ATTACHMENT:", ticket.Attachment)
 
 	return ticket, nil
 }
@@ -133,65 +130,61 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 }
 
 func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64, in model.UpdateTicketStatusInput) error {
-	log := logrus.WithFields(logrus.Fields{
-		"id": id,
-	})
+	log := logrus.WithFields(logrus.Fields{"ticket_id": id, "status": in.Status})
 
 	if err := validate.Struct(in); err != nil {
 		log.Error("Validation error: ", err)
 		return err
 	}
 
-	if !isValidStatus(in.Status) {
-		return errors.New("invalid ticket status")
+	ticket, err := u.ticketRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
 	}
 
-	tx := u.db.WithContext(ctx).Begin()
+	if in.Status == model.StatusOnHold && ticket.PausedAt == nil {
+		now := time.Now()
+		ticket.PausedAt = &now
+	}
 
-	var ticket model.Ticket
-	if err := tx.First(&ticket, id).Error; err != nil {
-		tx.Rollback()
-		return err
+	if ticket.PausedAt != nil &&
+		(in.Status == model.StatusOpen || in.Status == model.StatusInProgress) {
+
+		duration := time.Since(*ticket.PausedAt).Seconds()
+		ticket.TotalPaused += int64(duration)
+		ticket.PausedAt = nil
+	}
+
+	if in.Status == model.StatusResolved && ticket.PausedAt != nil {
+		duration := time.Since(*ticket.PausedAt).Seconds()
+		ticket.TotalPaused += int64(duration)
+		ticket.PausedAt = nil
 	}
 
 	oldStatus := ticket.Status
-	newStatus := in.Status
+	ticket.Status = in.Status
 
-	if oldStatus == newStatus {
-		tx.Rollback()
-		return errors.New("status is the same")
-	}
-
-	ticket.Status = newStatus
-
-	if newStatus == model.StatusResolved {
-		now := time.Now()
-		ticket.ResolvedAt = &now
-	}
-
-	if err := tx.Save(&ticket).Error; err != nil {
-		tx.Rollback()
+	if err := u.ticketRepo.Update(ctx, *ticket); err != nil {
 		return err
 	}
 
-	oldStr := string(oldStatus)
-	newStr := string(newStatus)
+	oldStatusStr := string(oldStatus)
+	newStatusStr := string(in.Status)
 
 	history := model.TicketHistory{
-		TicketID:  ticket.ID,
+		TicketID:  id,
 		UserID:    userID,
-		Action:    "UPDATED",
+		Action:    "UPDATE_STATUS",
 		FieldName: "status",
-		OldValue:  &oldStr,
-		NewValue:  &newStr,
+		OldValue:  &oldStatusStr,
+		NewValue:  &newStatusStr,
+		CreatedAt: time.Now(),
 	}
 
-	if err := tx.Create(&history).Error; err != nil {
-		tx.Rollback()
+	_, err = u.ticketHistoryRepo.Create(ctx, history)
+	if err != nil {
 		return err
 	}
-
-	tx.Commit()
 
 	return nil
 }

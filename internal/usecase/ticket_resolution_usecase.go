@@ -31,28 +31,20 @@ func NewTicketResolutionUsecase(
 	}
 }
 
-func (u *TicketResolutionUsecase) Create(
-	ctx context.Context,
-	userID int64,
-	in model.CreateTicketResolutionInput,
-) (*model.TicketResolution, error) {
-
-	log := logrus.WithFields(logrus.Fields{"in": in})
-
-	if err := validate.Struct(in); err != nil {
-		log.Error("Validation error: ", err)
-		return nil, err
+func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in model.CreateTicketResolutionInput) (*model.TicketResolution, error) {
+	if in.Status != model.StatusResolved {
+		return nil, errors.New("resolution only allowed for RESOLVED status")
 	}
 
 	var ticket model.Ticket
-	if err := u.db.WithContext(ctx).
-		Where("id = ?", in.TicketID).
-		First(&ticket).Error; err != nil {
+	if err := u.db.Where("id = ?", in.TicketID).First(&ticket).Error; err != nil {
 		return nil, err
 	}
 
-	if ticket.Status == "RESOLVED" {
-		return nil, errors.New("ticket already resolved")
+	if ticket.PausedAt != nil {
+		duration := time.Since(*ticket.PausedAt).Seconds()
+		ticket.TotalPaused += int64(duration)
+		ticket.PausedAt = nil
 	}
 
 	completionTime := in.CompletionTime
@@ -77,30 +69,13 @@ func (u *TicketResolutionUsecase) Create(
 		return nil, err
 	}
 
-	oldStatus := ticket.Status
-	newStatus := "RESOLVED"
-
 	if err := tx.Model(&model.Ticket{}).
-		Where("id = ?", in.TicketID).
-		Update("status", newStatus).Error; err != nil {
-		tx.Rollback()
-		return nil, err
-	}
-
-	oldStatusStr := string(oldStatus)
-	newStatusStr := string(newStatus)
-
-	history := model.TicketHistory{
-		TicketID:  in.TicketID,
-		UserID:    userID,
-		Action:    "UPDATE_STATUS",
-		FieldName: "status",
-		OldValue:  &oldStatusStr,
-		NewValue:  &newStatusStr,
-		CreatedAt: time.Now(),
-	}
-
-	if err := tx.WithContext(ctx).Create(&history).Error; err != nil {
+		Where("id = ?", ticket.ID).
+		Updates(map[string]interface{}{
+			"status":       model.StatusResolved,
+			"paused_at":    nil,
+			"total_paused": ticket.TotalPaused,
+		}).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
@@ -111,4 +86,68 @@ func (u *TicketResolutionUsecase) Create(
 
 func (u *TicketResolutionUsecase) FindByTicketID(ctx context.Context, ticketID int64) (*model.TicketResolution, error) {
 	return u.resolutionRepo.FindByTicketID(ctx, ticketID)
+}
+
+func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int64, userID int64, in model.UpdateTicketStatusInput) error {
+	log := logrus.WithFields(logrus.Fields{"in": in})
+
+	if err := validate.Struct(in); err != nil {
+		log.Error("Validation error: ", err)
+		return err
+	}
+
+	var ticket model.Ticket
+	if err := u.db.WithContext(ctx).
+		Where("id = ?", ticketID).
+		First(&ticket).Error; err != nil {
+		return err
+	}
+
+	if in.Status == model.StatusOnHold && ticket.PausedAt == nil {
+		now := time.Now()
+		ticket.PausedAt = &now
+	}
+
+	if ticket.PausedAt != nil &&
+		(in.Status == model.StatusOpen || in.Status == model.StatusInProgress) {
+
+		duration := time.Since(*ticket.PausedAt).Seconds()
+		ticket.TotalPaused += int64(duration)
+		ticket.PausedAt = nil
+	}
+
+	tx := u.db.Begin()
+
+	oldStatus := ticket.Status
+
+	if err := tx.Model(&model.Ticket{}).
+		Where("id = ?", ticket.ID).
+		Updates(map[string]interface{}{
+			"status":       in.Status,
+			"paused_at":    ticket.PausedAt,
+			"total_paused": ticket.TotalPaused,
+		}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	oldStatusStr := string(oldStatus)
+	newStatusStr := string(in.Status)
+
+	history := model.TicketHistory{
+		TicketID:  ticket.ID,
+		UserID:    userID,
+		Action:    "UPDATE_STATUS",
+		FieldName: "status",
+		OldValue:  &oldStatusStr,
+		NewValue:  &newStatusStr,
+		CreatedAt: time.Now(),
+	}
+
+	if err := tx.Create(&history).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	return tx.Commit().Error
 }

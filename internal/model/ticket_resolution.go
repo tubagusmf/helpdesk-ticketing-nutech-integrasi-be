@@ -20,12 +20,13 @@ type TicketResolution struct {
 }
 
 type CreateTicketResolutionInput struct {
-	TicketID        int64     `json:"ticket_id" validate:"required"`
-	CauseID         int64     `json:"cause_id" validate:"required"`
-	SolutionID      int64     `json:"solution_id" validate:"required"`
-	ResolutionNotes string    `json:"resolution_notes"`
-	CompletionTime  time.Time `json:"completion_time"`
-	AttachmentURL   string    `json:"attachment_url"`
+	TicketID        int64        `json:"ticket_id" validate:"required"`
+	CauseID         int64        `json:"cause_id"`
+	SolutionID      int64        `json:"solution_id"`
+	ResolutionNotes string       `json:"resolution_notes"`
+	CompletionTime  time.Time    `json:"completion_time"`
+	AttachmentURL   string       `json:"attachment_url"`
+	Status          TicketStatus `json:"status" validate:"required"`
 }
 
 type ITicketResolutionRepository interface {
@@ -36,4 +37,5 @@ type ITicketResolutionRepository interface {
 type ITicketResolutionUsecase interface {
 	Create(ctx context.Context, userID int64, in CreateTicketResolutionInput) (*TicketResolution, error)
 	FindByTicketID(ctx context.Context, ticketID int64) (*TicketResolution, error)
+	UpdateStatus(ctx context.Context, ticketID int64, userID int64, in UpdateTicketStatusInput) error
 }
