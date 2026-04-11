@@ -53,8 +53,12 @@ func (r *SolutionRepo) FindAll(ctx context.Context, filter model.Solution, page 
 	query := r.db.WithContext(ctx).
 		Model(&model.Solution{}).
 		Joins("LEFT JOIN causes ON causes.id = solutions.cause_id").
+		Joins("LEFT JOIN parts ON parts.id = causes.part_id").
+		Joins("LEFT JOIN projects ON projects.id = parts.project_id").
 		Where("solutions.deleted_at IS NULL").
-		Preload("Cause")
+		Preload("Cause").
+		Preload("Cause.Part").
+		Preload("Cause.Part.Project")
 
 	if filter.CauseID != 0 {
 		query = query.Where("solutions.cause_id = ?", filter.CauseID)
@@ -62,7 +66,7 @@ func (r *SolutionRepo) FindAll(ctx context.Context, filter model.Solution, page 
 
 	if filter.Name != "" {
 		search := "%" + filter.Name + "%"
-		query = query.Where("solutions.name ILIKE ?", search)
+		query = query.Where("solutions.name ILIKE ? OR causes.name ILIKE ? OR projects.name ILIKE ?", search, search, search)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
