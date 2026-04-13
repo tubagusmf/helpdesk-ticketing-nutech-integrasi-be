@@ -97,7 +97,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewSolutionHandler(e, solutionUsecase)
 	handlerHttp.NewTicketHandler(e, ticketUsecase)
 	handlerHttp.NewTicketHistoryHandler(e, ticketHistoryUsecase)
-	handlerHttp.NewTicketCommentHandler(e, ticketCommentUsecase)
+	handlerHttp.NewTicketCommentHandler(e, ticketCommentUsecase, ticketUsecase)
 	handlerHttp.NewTicketResolutionHandler(e, ticketResolutionUsecase)
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{

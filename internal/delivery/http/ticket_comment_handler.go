@@ -9,12 +9,14 @@ import (
 )
 
 type TicketCommentHandler struct {
-	usecase model.ITicketCommentUsecase
+	usecase       model.ITicketCommentUsecase
+	ticketUsecase model.ITicketUsecase
 }
 
-func NewTicketCommentHandler(e *echo.Echo, u model.ITicketCommentUsecase) {
+func NewTicketCommentHandler(e *echo.Echo, u model.ITicketCommentUsecase, ticketUsecase model.ITicketUsecase) {
 	handler := &TicketCommentHandler{
-		usecase: u,
+		usecase:       u,
+		ticketUsecase: ticketUsecase,
 	}
 
 	group := e.Group("/v1/tickets")
@@ -49,6 +51,16 @@ func (h *TicketCommentHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "message is required")
 	}
 
+	// ✅ ambil ticket (BUKAN comment)
+	ticket, err := h.ticketUsecase.FindByID(ctx, ticketID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, "ticket not found")
+	}
+
+	if ticket.Status == "CLOSED" {
+		return echo.NewHTTPError(http.StatusBadRequest, "ticket already closed")
+	}
+
 	comment := model.TicketComment{
 		TicketID: ticketID,
 		UserID:   claims.UserID,
@@ -79,5 +91,8 @@ func (h *TicketCommentHandler) GetByTicketID(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, comments)
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "comments fetched successfully",
+		"data":    comments,
+	})
 }

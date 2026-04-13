@@ -33,7 +33,7 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 	return result, nil
 }
 
-func (u *TicketCommentUsecase) FindByTicketID(ctx context.Context, ticketID int64) ([]*model.TicketComment, error) {
+func (u *TicketCommentUsecase) FindByTicketID(ctx context.Context, ticketID int64) ([]*model.TicketCommentResponse, error) {
 	log := logrus.WithFields(logrus.Fields{
 		"ticketID": ticketID,
 	})

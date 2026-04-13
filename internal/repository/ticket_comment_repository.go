@@ -22,13 +22,23 @@ func (r *TicketCommentRepo) Create(ctx context.Context, comment model.TicketComm
 	return &comment, nil
 }
 
-func (r *TicketCommentRepo) FindByTicketID(ctx context.Context, ticketID int64) ([]*model.TicketComment, error) {
-	var comments []*model.TicketComment
+func (r *TicketCommentRepo) FindByTicketID(ctx context.Context, ticketID int64) ([]*model.TicketCommentResponse, error) {
+	var comments []*model.TicketCommentResponse
 
 	err := r.db.WithContext(ctx).
-		Where("ticket_id = ?", ticketID).
-		Order("created_at DESC").
-		Find(&comments).Error
+		Table("ticket_comments").
+		Select(`
+			ticket_comments.id,
+			ticket_comments.ticket_id,
+			ticket_comments.user_id,
+			users.name as user_name,
+			ticket_comments.message,
+			ticket_comments.created_at
+		`).
+		Joins("LEFT JOIN users ON users.id = ticket_comments.user_id").
+		Where("ticket_comments.ticket_id = ?", ticketID).
+		Order("ticket_comments.created_at ASC").
+		Scan(&comments).Error
 
 	if err != nil {
 		return nil, err

@@ -50,8 +50,6 @@ func (u *TicketUsecase) FindByID(ctx context.Context, id int64) (*model.Ticket, 
 		return nil, err
 	}
 
-	fmt.Println("USECASE ATTACHMENT:", ticket.Attachment)
-
 	return ticket, nil
 }
 
