@@ -112,13 +112,19 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 	history := model.TicketHistory{
 		TicketID:  ticket.ID,
 		UserID:    reporterID,
-		Action:    "CREATED",
+		Action:    "CREATE",
 		FieldName: "status",
 		NewValue:  &statusStr,
 	}
 
 	if err := tx.Create(&history).Error; err != nil {
 		tx.Rollback()
+		log.Error("FAILED insert history CREATE: ", err)
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		log.Error("FAILED commit transaction: ", err)
 		return nil, err
 	}
 
@@ -172,7 +178,7 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 	history := model.TicketHistory{
 		TicketID:  id,
 		UserID:    userID,
-		Action:    "UPDATE_STATUS",
+		Action:    "STATUS_UPDATED",
 		FieldName: "status",
 		OldValue:  &oldStatusStr,
 		NewValue:  &newStatusStr,

@@ -41,6 +41,8 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		return nil, err
 	}
 
+	oldStatus := ticket.Status
+
 	if ticket.PausedAt != nil {
 		duration := time.Since(*ticket.PausedAt).Seconds()
 		ticket.TotalPaused += int64(duration)
@@ -80,7 +82,27 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		return nil, err
 	}
 
-	tx.Commit()
+	oldStatusStr := string(oldStatus)
+	newStatusStr := string(model.StatusResolved)
+
+	history := model.TicketHistory{
+		TicketID:  ticket.ID,
+		UserID:    userID,
+		Action:    "UPDATE_STATUS",
+		FieldName: "status",
+		OldValue:  &oldStatusStr,
+		NewValue:  &newStatusStr,
+	}
+
+	if err := tx.Create(&history).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
 	return createdResolution, nil
 }
 
@@ -89,31 +111,17 @@ func (u *TicketResolutionUsecase) FindByTicketID(ctx context.Context, ticketID i
 }
 
 func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int64, userID int64, in model.UpdateTicketStatusInput) error {
-	log := logrus.WithFields(logrus.Fields{"in": in})
-
-	if err := validate.Struct(in); err != nil {
-		log.Error("Validation error: ", err)
-		return err
-	}
+	log := logrus.WithFields(logrus.Fields{
+		"ticket_id": ticketID,
+		"user_id":   userID,
+		"status":    in.Status,
+	})
 
 	var ticket model.Ticket
 	if err := u.db.WithContext(ctx).
 		Where("id = ?", ticketID).
 		First(&ticket).Error; err != nil {
 		return err
-	}
-
-	if in.Status == model.StatusOnHold && ticket.PausedAt == nil {
-		now := time.Now()
-		ticket.PausedAt = &now
-	}
-
-	if ticket.PausedAt != nil &&
-		(in.Status == model.StatusOpen || in.Status == model.StatusInProgress) {
-
-		duration := time.Since(*ticket.PausedAt).Seconds()
-		ticket.TotalPaused += int64(duration)
-		ticket.PausedAt = nil
 	}
 
 	tx := u.db.Begin()
@@ -123,9 +131,7 @@ func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int
 	if err := tx.Model(&model.Ticket{}).
 		Where("id = ?", ticket.ID).
 		Updates(map[string]interface{}{
-			"status":       in.Status,
-			"paused_at":    ticket.PausedAt,
-			"total_paused": ticket.TotalPaused,
+			"status": in.Status,
 		}).Error; err != nil {
 		tx.Rollback()
 		return err
@@ -141,13 +147,18 @@ func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int
 		FieldName: "status",
 		OldValue:  &oldStatusStr,
 		NewValue:  &newStatusStr,
-		CreatedAt: time.Now(),
 	}
+
+	log.Infof("INSERT HISTORY: %+v", history)
 
 	if err := tx.Create(&history).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
 
-	return tx.Commit().Error
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -8,14 +8,17 @@ import (
 )
 
 type TicketCommentUsecase struct {
-	repo model.ITicketCommentRepository
+	repo              model.ITicketCommentRepository
+	ticketHistoryRepo model.ITicketHistoryRepository
 }
 
 func NewTicketCommentUsecase(
 	repo model.ITicketCommentRepository,
+	ticketHistoryRepo model.ITicketHistoryRepository,
 ) model.ITicketCommentUsecase {
 	return &TicketCommentUsecase{
-		repo: repo,
+		repo:              repo,
+		ticketHistoryRepo: ticketHistoryRepo,
 	}
 }
 
@@ -28,6 +31,20 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 	if err != nil {
 		log.Error("Failed to create ticket comment: ", err)
 		return nil, err
+	}
+
+	message := comment.Message
+
+	_, err = u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
+		TicketID: comment.TicketID,
+		UserID:   comment.UserID,
+		Action:   "COMMENT",
+		NewValue: &message,
+	})
+	if err != nil {
+		log.Error("FAILED insert history COMMENT: ", err)
+	} else {
+		log.Info("SUCCESS insert history COMMENT")
 	}
 
 	return result, nil

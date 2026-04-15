@@ -19,7 +19,7 @@ func NewTicketHistoryHandler(e *echo.Echo, u model.ITicketHistoryUsecase) {
 
 	group := e.Group("/v1/tickets")
 
-	group.GET("/history/:id", handler.GetByTicketID, AuthMiddleware)
+	group.GET("/:id/history", handler.GetByTicketID, AuthMiddleware)
 }
 
 func (h *TicketHistoryHandler) GetByTicketID(c echo.Context) error {
@@ -38,5 +38,7 @@ func (h *TicketHistoryHandler) GetByTicketID(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
 
-	return c.JSON(http.StatusOK, histories)
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"data": histories,
+	})
 }

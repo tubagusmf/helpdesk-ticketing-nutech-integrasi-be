@@ -22,16 +22,22 @@ func (r *TicketHistoryRepo) Create(ctx context.Context, history model.TicketHist
 	return &history, nil
 }
 
-func (r *TicketHistoryRepo) FindByTicketID(ctx context.Context, ticketID int64) ([]*model.TicketHistory, error) {
-	var histories []*model.TicketHistory
+func (r *TicketHistoryRepo) FindByTicketID(ctx context.Context, ticketID int64) ([]*model.TicketHistoryResponse, error) {
+	var histories []*model.TicketHistoryResponse
 
-	err := r.db.WithContext(ctx).
-		Where("ticket_id = ?", ticketID).
-		Order("created_at DESC").
-		Find(&histories).Error
+	tx := r.db.WithContext(ctx).
+		Table("ticket_histories th").
+		Select(`
+			th.*,
+			u.name as user_name
+		`).
+		Joins("LEFT JOIN users u ON u.id = th.user_id").
+		Where("th.ticket_id = ?", ticketID).
+		Order("th.created_at DESC").
+		Find(&histories)
 
-	if err != nil {
-		return nil, err
+	if tx.Error != nil {
+		return nil, tx.Error
 	}
 
 	return histories, nil
