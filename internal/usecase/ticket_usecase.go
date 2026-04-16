@@ -29,13 +29,13 @@ func NewTicketUsecase(
 	}
 }
 
-func (u *TicketUsecase) FindAll(ctx context.Context, filter model.Ticket, search string, page int, limit int) ([]*model.TicketResponse, int64, error) {
+func (u *TicketUsecase) FindAll(ctx context.Context, filter model.Ticket, search string, startDate string, endDate string, page int, limit int) ([]*model.TicketResponse, int64, error) {
 	log := logrus.WithFields(logrus.Fields{
 		"filter": filter,
 		"search": search,
 	})
 
-	tickets, total, err := u.ticketRepo.FindAll(ctx, filter, search, page, limit)
+	tickets, total, err := u.ticketRepo.FindAll(ctx, filter, search, startDate, endDate, page, limit)
 	if err != nil {
 		log.Error("Failed to fetch tickets: ", err)
 		return nil, 0, err

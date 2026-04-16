@@ -42,7 +42,7 @@ func (r *TicketRepo) FindByID(ctx context.Context, id int64) (*model.Ticket, err
 	return &ticket, nil
 }
 
-func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search string, page int, limit int) ([]*model.TicketResponse, int64, error) {
+func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search string, startDate string, endDate string, page int, limit int) ([]*model.TicketResponse, int64, error) {
 	var tickets []*model.TicketResponse
 	var total int64
 
@@ -90,6 +90,14 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 
 	if filter.Status != "" {
 		query = query.Where("tickets.status = ?", filter.Status)
+	}
+
+	if startDate != "" {
+		query = query.Where("DATE(tickets.created_at) >= ?", startDate)
+	}
+
+	if endDate != "" {
+		query = query.Where("DATE(tickets.created_at) <= ?", endDate)
 	}
 
 	if err := query.Count(&total).Error; err != nil {

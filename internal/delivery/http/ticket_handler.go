@@ -5,7 +5,9 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
@@ -27,6 +29,7 @@ func NewTicketHandler(e *echo.Echo, ticketUsecase model.ITicketUsecase) {
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
 	group.PUT("/update-status/:id", handler.UpdateStatus, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
+	group.GET("/export", handler.Export, AuthMiddleware)
 }
 
 func (h *TicketHandler) Create(c echo.Context) error {
@@ -106,6 +109,8 @@ func (h *TicketHandler) FindAll(c echo.Context) error {
 	priority := c.QueryParam("priority")
 	status := c.QueryParam("status")
 	search := c.QueryParam("search")
+	startDate := c.QueryParam("start_date")
+	endDate := c.QueryParam("end_date")
 
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page == 0 {
@@ -125,6 +130,8 @@ func (h *TicketHandler) FindAll(c echo.Context) error {
 		c.Request().Context(),
 		filter,
 		search,
+		startDate,
+		endDate,
 		page,
 		limit,
 	)
@@ -213,4 +220,59 @@ func (h *TicketHandler) Delete(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "ticket deleted successfully",
 	})
+}
+
+func (h *TicketHandler) Export(c echo.Context) error {
+	projectID, _ := strconv.ParseInt(c.QueryParam("project_id"), 10, 64)
+	staffID, _ := strconv.ParseInt(c.QueryParam("assigned_to_id"), 10, 64)
+	reporterID, _ := strconv.ParseInt(c.QueryParam("reporter_id"), 10, 64)
+
+	priority := c.QueryParam("priority")
+	status := c.QueryParam("status")
+	search := c.QueryParam("search")
+
+	startDate := c.QueryParam("start_date")
+	endDate := c.QueryParam("end_date")
+
+	filter := model.Ticket{
+		ProjectID:    projectID,
+		AssignedToID: staffID,
+		ReporterID:   reporterID,
+		Priority:     model.TicketPriority(priority),
+		Status:       model.TicketStatus(status),
+	}
+
+	tickets, _, err := h.ticketUsecase.FindAll(
+		c.Request().Context(),
+		filter,
+		search,
+		startDate,
+		endDate,
+		1,
+		10000,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	file, err := helper.GenerateExcelTickets(tickets)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	fileName := fmt.Sprintf(
+		"ticket_%s_%s.xlsx",
+		time.Now().Format("2006-01-02_150405"),
+		uuid.New().String()[:8],
+	)
+
+	c.Response().Header().Set(echo.HeaderContentDisposition, "attachment; filename="+fileName)
+	c.Response().Header().Set(echo.HeaderContentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+	return c.Blob(
+		http.StatusOK,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		file.Bytes(),
+	)
 }

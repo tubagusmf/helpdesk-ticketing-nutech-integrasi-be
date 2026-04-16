@@ -51,7 +51,6 @@ func (h *TicketCommentHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "message is required")
 	}
 
-	// ✅ ambil ticket (BUKAN comment)
 	ticket, err := h.ticketUsecase.FindByID(ctx, ticketID)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusNotFound, "ticket not found")
