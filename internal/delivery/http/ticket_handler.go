@@ -161,8 +161,6 @@ func (h *TicketHandler) FindByID(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusNotFound, err.Error())
 	}
 
-	fmt.Println("HANDLER ATTACHMENT:", ticket.Attachment)
-
 	return c.JSON(http.StatusOK, ticket)
 }
 
@@ -177,10 +175,6 @@ func (h *TicketHandler) UpdateStatus(c echo.Context) error {
 	var req model.UpdateTicketStatusInput
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
-	}
-
-	if err := c.Validate(req); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
 	}
 
 	claimValue := c.Request().Context().Value(model.BearerAuthKey)

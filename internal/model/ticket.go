@@ -33,6 +33,7 @@ type Ticket struct {
 	Status       TicketStatus   `json:"status"`
 	Priority     TicketPriority `json:"priority"`
 	Description  string         `json:"description"`
+	OnholdNotes  *string        `json:"onhold_notes"`
 	Attachment   *string        `json:"attachment"`
 	DueAt        time.Time      `json:"due_at"`
 	ResolvedAt   *time.Time     `json:"resolved_at"`
@@ -75,7 +76,8 @@ type CreateTicketInput struct {
 }
 
 type UpdateTicketStatusInput struct {
-	Status TicketStatus `json:"status" validate:"required"`
+	Status      TicketStatus `json:"status" validate:"required"`
+	OnholdNotes string       `json:"onhold_notes"`
 }
 
 type ITicketRepository interface {

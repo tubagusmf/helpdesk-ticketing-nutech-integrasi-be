@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 
+	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 )
 
@@ -21,8 +22,11 @@ func (u *TicketHistoryUsecase) Create(ctx context.Context, history model.TicketH
 }
 
 func (u *TicketHistoryUsecase) FindByTicketID(ctx context.Context, ticketID int64) ([]*model.TicketHistoryResponse, error) {
+	log := logrus.WithField("ticket_id", ticketID)
+
 	histories, err := u.repo.FindByTicketID(ctx, ticketID)
 	if err != nil {
+		log.Error("failed get histories:", err)
 		return nil, err
 	}
 
@@ -32,7 +36,7 @@ func (u *TicketHistoryUsecase) FindByTicketID(ctx context.Context, ticketID int6
 
 		h.Type = mapAction(h.Action, h.FieldName)
 
-		if h.Action == "COMMENT" {
+		if h.Action == "COMMENT" || h.Action == "ONHOLD_NOTE" {
 			h.Message = h.NewValue
 		}
 
@@ -52,9 +56,13 @@ func mapAction(action, field string) string {
 		if field == "status" {
 			return "STATUS_UPDATED"
 		}
+		return "OTHER"
 
 	case "COMMENT":
 		return "COMMENT"
+
+	case "ONHOLD_NOTE":
+		return "ONHOLD_NOTE"
 	}
 
 	return "OTHER"

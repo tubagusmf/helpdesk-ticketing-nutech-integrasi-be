@@ -134,60 +134,86 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 }
 
 func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64, in model.UpdateTicketStatusInput) error {
-	log := logrus.WithFields(logrus.Fields{"ticket_id": id, "status": in.Status})
+	log := logrus.WithFields(logrus.Fields{
+		"ticket_id": id,
+		"user_id":   userID,
+		"status":    in.Status,
+	})
 
 	if err := validate.Struct(in); err != nil {
-		log.Error("Validation error: ", err)
+		log.Error("validation error:", err)
 		return err
 	}
 
 	ticket, err := u.ticketRepo.FindByID(ctx, id)
 	if err != nil {
+		log.Error("ticket not found:", err)
 		return err
 	}
 
+	oldStatus := ticket.Status
+
+	now := time.Now()
+
 	if in.Status == model.StatusOnHold && ticket.PausedAt == nil {
-		now := time.Now()
 		ticket.PausedAt = &now
 	}
 
+	if in.Status == model.StatusOnHold {
+		ticket.OnholdNotes = &in.OnholdNotes
+	} else {
+		ticket.OnholdNotes = nil
+	}
+
 	if ticket.PausedAt != nil &&
-		(in.Status == model.StatusOpen || in.Status == model.StatusInProgress) {
+		(in.Status == model.StatusOpen ||
+			in.Status == model.StatusInProgress ||
+			in.Status == model.StatusResolved) {
 
 		duration := time.Since(*ticket.PausedAt).Seconds()
 		ticket.TotalPaused += int64(duration)
 		ticket.PausedAt = nil
 	}
 
-	if in.Status == model.StatusResolved && ticket.PausedAt != nil {
-		duration := time.Since(*ticket.PausedAt).Seconds()
-		ticket.TotalPaused += int64(duration)
-		ticket.PausedAt = nil
-	}
-
-	oldStatus := ticket.Status
 	ticket.Status = in.Status
 
 	if err := u.ticketRepo.Update(ctx, *ticket); err != nil {
+		log.Error("failed update ticket:", err)
 		return err
 	}
 
 	oldStatusStr := string(oldStatus)
 	newStatusStr := string(in.Status)
 
-	history := model.TicketHistory{
+	_, err = u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
 		TicketID:  id,
 		UserID:    userID,
 		Action:    "STATUS_UPDATED",
 		FieldName: "status",
 		OldValue:  &oldStatusStr,
 		NewValue:  &newStatusStr,
-		CreatedAt: time.Now(),
+	})
+
+	if err != nil {
+		log.Error("failed insert STATUS history:", err)
+		return err
 	}
 
-	_, err = u.ticketHistoryRepo.Create(ctx, history)
-	if err != nil {
-		return err
+	if in.Status == model.StatusOnHold && in.OnholdNotes != "" {
+		notes := in.OnholdNotes
+
+		_, err := u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
+			TicketID: id,
+			UserID:   userID,
+			Action:   "ONHOLD_NOTE",
+			NewValue: &notes,
+		})
+
+		if err != nil {
+			log.Error("failed insert ONHOLD_NOTE:", err)
+		} else {
+			log.Info("success insert ONHOLD_NOTE")
+		}
 	}
 
 	return nil
