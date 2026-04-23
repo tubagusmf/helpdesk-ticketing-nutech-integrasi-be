@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"context"
 	"os"
 	"time"
 
@@ -55,4 +56,12 @@ func DecodeToken(tokenString string, claim *model.CustomClaims) error {
 	}
 
 	return nil
+}
+
+func GetUserFromContext(ctx context.Context) *model.CustomClaims {
+	claims, ok := ctx.Value(model.BearerAuthKey).(*model.CustomClaims)
+	if !ok {
+		return nil
+	}
+	return claims
 }

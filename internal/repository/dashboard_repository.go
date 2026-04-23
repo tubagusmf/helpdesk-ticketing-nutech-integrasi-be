@@ -147,5 +147,19 @@ func applyFilter(db *gorm.DB, filter map[string]interface{}) *gorm.DB {
 		db = db.Where("created_at <= ?", v)
 	}
 
+	if v, ok := filter["user_id"]; ok && v != "" {
+
+		role := ""
+		if r, ok := filter["role"]; ok {
+			role = r.(string)
+		}
+
+		if role == "staff" || role == "technician" {
+			db = db.Where("(reporter_id = ? OR assigned_to_id = ?)", v, v)
+		} else {
+			db = db.Where("reporter_id = ?", v)
+		}
+	}
+
 	return db
 }

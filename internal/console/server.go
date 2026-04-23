@@ -3,6 +3,7 @@ package console
 import (
 	"log"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/joho/godotenv"
@@ -115,7 +116,12 @@ func httpServer(cmd *cobra.Command, args []string) {
 
 	go func() {
 		defer wg.Done()
-		errCh <- e.Start(":3000")
+		port := os.Getenv("PORT")
+		if port == "" {
+			port = "3000"
+		}
+
+		errCh <- e.Start(":" + port)
 	}()
 
 	go func() {
