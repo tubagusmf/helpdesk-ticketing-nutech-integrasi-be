@@ -76,7 +76,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	ticketResolution := repository.NewTicketResolutionRepo(postgresDB)
 	dashboardRepo := repository.NewDashboardRepo(postgresDB)
 
-	userUsecase := usecase.NewUserUsecase(userRepo)
+	userUsecase := usecase.NewUserUsecase(userRepo, projectRepo)
 	roleUsecase := usecase.NewRoleUsecase(roleRepo)
 	projectUsecase := usecase.NewProjectUsecase(projectRepo)
 	locationUsecase := usecase.NewLocationUsecase(locationRepo)

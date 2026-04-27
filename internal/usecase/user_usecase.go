@@ -14,12 +14,14 @@ import (
 var validate = validator.New()
 
 type UserUsecase struct {
-	userRepo model.IUserRepository
+	userRepo    model.IUserRepository
+	projectRepo model.IProjectRepository
 }
 
-func NewUserUsecase(userRepo model.IUserRepository) model.IUserUsecase {
+func NewUserUsecase(userRepo model.IUserRepository, projectRepo model.IProjectRepository) model.IUserUsecase {
 	return &UserUsecase{
-		userRepo: userRepo,
+		userRepo:    userRepo,
+		projectRepo: projectRepo,
 	}
 }
 
@@ -114,14 +116,24 @@ func (u *UserUsecase) FindAll(ctx context.Context, filter model.User, page int, 
 }
 
 func (u *UserUsecase) FindByID(ctx context.Context, id int64) (*model.User, error) {
-	log := logrus.WithFields(logrus.Fields{
-		"id": id,
-	})
-
 	user, err := u.userRepo.FindByID(ctx, id)
 	if err != nil {
-		log.Error(err)
 		return nil, err
+	}
+
+	// Administrator can see all projects
+	if user.Role.Name == "ADMINISTRATOR" {
+		projects, _, err := u.projectRepo.FindAll(ctx, model.Project{}, 1, 1000)
+		if err != nil {
+			return nil, err
+		}
+
+		var allProjects []model.Project
+		for _, p := range projects {
+			allProjects = append(allProjects, *p)
+		}
+
+		user.Projects = allProjects
 	}
 
 	return user, nil
@@ -163,8 +175,6 @@ func (u *UserUsecase) Update(ctx context.Context, id int64, in model.UpdateUserI
 	}
 
 	user.Projects = projects
-
-	logrus.Infof("Projects count: %d", len(user.Projects))
 
 	return u.userRepo.Update(ctx, *user)
 }
