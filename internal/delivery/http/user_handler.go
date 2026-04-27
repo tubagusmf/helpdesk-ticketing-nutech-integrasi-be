@@ -26,6 +26,7 @@ func NewUserHandler(e *echo.Echo, userUsecase model.IUserUsecase) {
 	group.PUT("/update/:id", handler.Update, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 	group.PUT("/online-status", handler.UpdateOnlineStatus, AuthMiddleware)
+	group.GET("/me", handler.GetMe, AuthMiddleware)
 }
 
 func (h *UserHandler) Login(c echo.Context) error {
@@ -179,5 +180,23 @@ func (h *UserHandler) UpdateOnlineStatus(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "online status updated",
+	})
+}
+
+func (h *UserHandler) GetMe(c echo.Context) error {
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user not found")
+	}
+
+	claim := claimValue.(*model.CustomClaims)
+
+	user, err := h.userUsecase.FindByID(c.Request().Context(), claim.UserID)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"data": user,
 	})
 }

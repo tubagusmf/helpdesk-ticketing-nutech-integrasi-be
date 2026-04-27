@@ -42,6 +42,11 @@ func (u *UserUsecase) Login(ctx context.Context, in model.LoginInput) (string, e
 		return "", errors.New("email or password is incorrect")
 	}
 
+	err = u.userRepo.UpdateOnlineStatus(ctx, user.ID, true)
+	if err != nil {
+		log.Error("failed update online status:", err)
+	}
+
 	token, err := helper.GenerateToken(*user)
 	if err != nil {
 		return "", err

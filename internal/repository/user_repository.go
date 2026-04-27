@@ -217,5 +217,8 @@ func (r *UserRepo) UpdateOnlineStatus(ctx context.Context, userID int64, isOnlin
 	return r.db.WithContext(ctx).
 		Model(&model.User{}).
 		Where("id = ?", userID).
-		Update("is_online", isOnline).Error
+		Updates(map[string]interface{}{
+			"is_online": isOnline,
+			"last_seen": time.Now(),
+		}).Error
 }
