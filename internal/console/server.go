@@ -12,6 +12,7 @@ import (
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/repository"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/usecase"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/worker"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
@@ -33,13 +34,14 @@ var serverCMD = &cobra.Command{
 }
 
 func httpServer(cmd *cobra.Command, args []string) {
-
 	err := godotenv.Load()
 	if err != nil {
 		log.Println(".env file not found")
 	}
 
 	config.LoadWithViper()
+
+	config.InitRedis()
 
 	err = helper.InitCloudinary(
 		config.CloudinaryCloudName(),
@@ -87,6 +89,9 @@ func httpServer(cmd *cobra.Command, args []string) {
 	ticketCommentUsecase := usecase.NewTicketCommentUsecase(ticketComment, ticketHistoryRepo)
 	ticketResolutionUsecase := usecase.NewTicketResolutionUsecase(postgresDB, ticketResolution, ticketHistoryRepo, ticketRepo)
 	dashboardUsecase := usecase.NewDashboardUsecase(dashboardRepo)
+
+	ticketWorker := worker.NewTicketWorker(postgresDB)
+	go ticketWorker.Start()
 
 	e := echo.New()
 

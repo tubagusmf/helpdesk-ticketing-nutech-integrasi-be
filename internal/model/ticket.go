@@ -29,7 +29,7 @@ type Ticket struct {
 	PartID       int64          `json:"part_id"`
 	AssetID      int64          `json:"asset_id"`
 	ReporterID   int64          `json:"reporter_id"`
-	AssignedToID int64          `json:"assigned_to_id"`
+	AssignedToID *int64         `json:"assigned_to_id"`
 	Status       TicketStatus   `json:"status"`
 	Priority     TicketPriority `json:"priority"`
 	Description  string         `json:"description"`
@@ -70,9 +70,9 @@ type CreateTicketInput struct {
 	LocationID   int64          `json:"location_id" validate:"required"`
 	PartID       int64          `json:"part_id" validate:"required"`
 	AssetID      int64          `json:"asset_id" validate:"required"`
-	AssignedToID int64          `json:"assigned_to_id" validate:"required"`
 	Priority     TicketPriority `json:"priority" validate:"required"`
 	Description  string         `json:"description" validate:"required"`
+	AssignedToID *int64         `json:"assigned_to_id"`
 }
 
 type UpdateTicketStatusInput struct {
@@ -91,7 +91,7 @@ type ITicketRepository interface {
 type ITicketUsecase interface {
 	FindAll(ctx context.Context, filter Ticket, search string, startDate string, endDate string, page int, limit int) ([]*TicketResponse, int64, error)
 	FindByID(ctx context.Context, id int64) (*Ticket, error)
-	Create(ctx context.Context, reporterID int64, in CreateTicketInput, attachmentPath *string) (*Ticket, error)
+	Create(ctx context.Context, reporterID int64, in CreateTicketInput, attachmentPath *string) (*Ticket, bool, error)
 	UpdateStatus(ctx context.Context, id int64, userID int64, in UpdateTicketStatusInput) error
 	Delete(ctx context.Context, id int64) error
 }

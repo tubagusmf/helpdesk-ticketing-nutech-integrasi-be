@@ -2,11 +2,13 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 	"gorm.io/gorm"
 )
@@ -53,25 +55,22 @@ func (u *TicketUsecase) FindByID(ctx context.Context, id int64) (*model.Ticket, 
 	return ticket, nil
 }
 
-func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.CreateTicketInput, attachmentPath *string) (*model.Ticket, error) {
-	log := logrus.WithFields(logrus.Fields{
-		"in": in,
-	})
-
+func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.CreateTicketInput, attachmentPath *string) (*model.Ticket, bool, error) {
 	if err := validate.Struct(in); err != nil {
-		log.Error("Validation error: ", err)
-		return nil, err
+		return nil, false, err
 	}
 
-	if err := u.validateStaff(in.AssignedToID); err != nil {
-		return nil, err
-	}
+	var count int64
+	u.db.Model(&model.User{}).
+		Where("role_id = 2 AND is_online = true").
+		Count(&count)
+
+	isAssigned := count > 0
 
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	now := time.Now().In(loc)
 
 	var dueAt time.Time
-
 	switch in.Priority {
 	case model.PriorityUrgent:
 		dueAt = now.Add(15 * time.Minute)
@@ -81,8 +80,6 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		dueAt = now.Add(2 * time.Hour)
 	case model.PriorityLow:
 		dueAt = now.Add(4 * time.Hour)
-	default:
-		dueAt = now.Add(2 * time.Hour)
 	}
 
 	ticket := model.Ticket{
@@ -92,45 +89,32 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		PartID:       in.PartID,
 		AssetID:      in.AssetID,
 		ReporterID:   reporterID,
-		AssignedToID: in.AssignedToID,
 		Priority:     in.Priority,
 		Description:  in.Description,
 		DueAt:        dueAt,
 		Status:       model.StatusOpen,
 		Attachment:   attachmentPath,
+		AssignedToID: nil,
 	}
 
-	tx := u.db.WithContext(ctx).Begin()
-
-	if err := tx.Create(&ticket).Error; err != nil {
-		tx.Rollback()
-		return nil, err
+	if err := u.db.WithContext(ctx).Create(&ticket).Error; err != nil {
+		return nil, false, err
 	}
 
-	statusStr := string(ticket.Status)
+	_, err := u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
+		TicketID: ticket.ID,
+		UserID:   reporterID,
+		Action:   "CREATED",
+	})
 
-	history := model.TicketHistory{
-		TicketID:  ticket.ID,
-		UserID:    reporterID,
-		Action:    "CREATE",
-		FieldName: "status",
-		NewValue:  &statusStr,
+	if err != nil {
+		logrus.Error("failed insert CREATED history:", err)
 	}
 
-	if err := tx.Create(&history).Error; err != nil {
-		tx.Rollback()
-		log.Error("FAILED insert history CREATE: ", err)
-		return nil, err
-	}
+	data, _ := json.Marshal(ticket)
+	config.Rdb.LPush(config.Ctx(), "ticket_queue", data)
 
-	if err := tx.Commit().Error; err != nil {
-		log.Error("FAILED commit transaction: ", err)
-		return nil, err
-	}
-
-	tx.Commit()
-
-	return &ticket, nil
+	return &ticket, isAssigned, nil
 }
 
 func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64, in model.UpdateTicketStatusInput) error {

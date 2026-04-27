@@ -212,3 +212,10 @@ func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 
 	return tx.Commit().Error
 }
+
+func (r *UserRepo) UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error {
+	return r.db.WithContext(ctx).
+		Model(&model.User{}).
+		Where("id = ?", userID).
+		Update("is_online", isOnline).Error
+}

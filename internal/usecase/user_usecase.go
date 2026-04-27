@@ -86,8 +86,6 @@ func (u *UserUsecase) Create(ctx context.Context, in model.CreateUserInput) (str
 		return "", err
 	}
 
-	logrus.Infof("Projects count: %d", len(newUser.Projects))
-
 	accessToken, err := helper.GenerateToken(*newUser)
 	if err != nil {
 		return "", err
@@ -182,4 +180,8 @@ func (u *UserUsecase) Delete(ctx context.Context, id int64) error {
 	}
 
 	return u.userRepo.Delete(ctx, id)
+}
+
+func (u *UserUsecase) UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error {
+	return u.userRepo.UpdateOnlineStatus(ctx, userID, isOnline)
 }

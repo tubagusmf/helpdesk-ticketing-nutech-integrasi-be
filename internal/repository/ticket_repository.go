@@ -76,8 +76,8 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		query = query.Where("tickets.project_id = ?", filter.ProjectID)
 	}
 
-	if filter.AssignedToID != 0 {
-		query = query.Where("tickets.assigned_to_id = ?", filter.AssignedToID)
+	if filter.AssignedToID != nil {
+		query = query.Where("tickets.assigned_to_id = ?", *filter.AssignedToID)
 	}
 
 	if filter.ReporterID != 0 {

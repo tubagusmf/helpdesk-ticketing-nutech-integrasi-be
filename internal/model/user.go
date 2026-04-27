@@ -28,6 +28,7 @@ type User struct {
 	RoleID    int64      `json:"role_id"`
 	Role      Role       `json:"role"`
 	IsActive  bool       `json:"is_active"`
+	IsOnline  bool       `json:"is_online"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"-"`
@@ -42,6 +43,7 @@ type IUserRepository interface {
 	Create(ctx context.Context, user User) (*User, error)
 	Update(ctx context.Context, user User) error
 	Delete(ctx context.Context, id int64) error
+	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
 }
 
 type IUserUsecase interface {
@@ -51,6 +53,7 @@ type IUserUsecase interface {
 	Create(ctx context.Context, in CreateUserInput) (token string, err error)
 	Update(ctx context.Context, id int64, in UpdateUserInput) error
 	Delete(ctx context.Context, id int64) error
+	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
 }
 
 type LoginInput struct {

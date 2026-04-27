@@ -25,6 +25,7 @@ func NewUserHandler(e *echo.Echo, userUsecase model.IUserUsecase) {
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
 	group.PUT("/update/:id", handler.Update, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
+	group.PUT("/online-status", handler.UpdateOnlineStatus, AuthMiddleware)
 }
 
 func (h *UserHandler) Login(c echo.Context) error {
@@ -147,5 +148,36 @@ func (h *UserHandler) Delete(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "deleted successfully",
+	})
+}
+
+func (h *UserHandler) UpdateOnlineStatus(c echo.Context) error {
+	var body struct {
+		IsOnline bool `json:"is_online"`
+	}
+
+	if err := c.Bind(&body); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+	}
+
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user not found")
+	}
+
+	claim := claimValue.(*model.CustomClaims)
+
+	err := h.userUsecase.UpdateOnlineStatus(
+		c.Request().Context(),
+		claim.UserID,
+		body.IsOnline,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "online status updated",
 	})
 }

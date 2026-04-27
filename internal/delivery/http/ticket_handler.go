@@ -44,19 +44,17 @@ func (h *TicketHandler) Create(c echo.Context) error {
 	locationID, _ := strconv.ParseInt(c.FormValue("location_id"), 10, 64)
 	partID, _ := strconv.ParseInt(c.FormValue("part_id"), 10, 64)
 	assetID, _ := strconv.ParseInt(c.FormValue("asset_id"), 10, 64)
-	assignedID, _ := strconv.ParseInt(c.FormValue("assigned_to_id"), 10, 64)
 
 	priority := model.TicketPriority(c.FormValue("priority"))
 	description := c.FormValue("description")
 
 	input := model.CreateTicketInput{
-		ProjectID:    projectID,
-		LocationID:   locationID,
-		PartID:       partID,
-		AssetID:      assetID,
-		AssignedToID: assignedID,
-		Priority:     priority,
-		Description:  description,
+		ProjectID:   projectID,
+		LocationID:  locationID,
+		PartID:      partID,
+		AssetID:     assetID,
+		Priority:    priority,
+		Description: description,
 	}
 
 	var attachmentURL *string
@@ -84,7 +82,7 @@ func (h *TicketHandler) Create(c echo.Context) error {
 		attachmentURL = &url
 	}
 
-	ticket, err := h.ticketUsecase.Create(
+	ticket, assigned, err := h.ticketUsecase.Create(
 		c.Request().Context(),
 		claim.UserID,
 		input,
@@ -96,8 +94,9 @@ func (h *TicketHandler) Create(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, map[string]interface{}{
-		"message": "ticket created successfully",
-		"data":    ticket,
+		"message":  "ticket created successfully",
+		"assigned": assigned,
+		"data":     ticket,
 	})
 }
 
@@ -118,9 +117,15 @@ func (h *TicketHandler) FindAll(c echo.Context) error {
 	}
 	limit := 10
 
+	var assignedToID *int64
+
+	if staffID != 0 {
+		assignedToID = &staffID
+	}
+
 	filter := model.Ticket{
 		ProjectID:    projectID,
-		AssignedToID: staffID,
+		AssignedToID: assignedToID,
 		ReporterID:   reporterID,
 		Priority:     model.TicketPriority(priority),
 		Status:       model.TicketStatus(status),
@@ -228,9 +233,15 @@ func (h *TicketHandler) Export(c echo.Context) error {
 	startDate := c.QueryParam("start_date")
 	endDate := c.QueryParam("end_date")
 
+	var assignedToID *int64
+
+	if staffID != 0 {
+		assignedToID = &staffID
+	}
+
 	filter := model.Ticket{
 		ProjectID:    projectID,
-		AssignedToID: staffID,
+		AssignedToID: assignedToID,
 		ReporterID:   reporterID,
 		Priority:     model.TicketPriority(priority),
 		Status:       model.TicketStatus(status),
