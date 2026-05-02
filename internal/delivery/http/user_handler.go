@@ -5,6 +5,7 @@ import (
 	"strconv"
 
 	"github.com/labstack/echo/v4"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 )
 
@@ -27,6 +28,9 @@ func NewUserHandler(e *echo.Echo, userUsecase model.IUserUsecase) {
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 	group.PUT("/online-status", handler.UpdateOnlineStatus, AuthMiddleware)
 	group.GET("/me", handler.GetMe, AuthMiddleware)
+	group.PUT("/force-offline/:id", handler.ForceOffline, AuthMiddleware)
+	group.PUT("/heartbeat", handler.Heartbeat, AuthMiddleware)
+	group.PUT("/logout", handler.Logout)
 }
 
 func (h *UserHandler) Login(c echo.Context) error {
@@ -199,4 +203,63 @@ func (h *UserHandler) GetMe(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"data": user,
 	})
+}
+
+func (h *UserHandler) ForceOffline(c echo.Context) error {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+
+	err := h.userUsecase.UpdateOnlineStatus(
+		c.Request().Context(),
+		id,
+		false,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "force offline success",
+	})
+}
+
+func (h *UserHandler) Heartbeat(c echo.Context) error {
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "user not found")
+	}
+
+	claim := claimValue.(*model.CustomClaims)
+
+	err := h.userUsecase.UpdateLastSeen(
+		c.Request().Context(),
+		claim.UserID,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
+
+	return c.NoContent(http.StatusOK)
+}
+
+func (h *UserHandler) Logout(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	var body struct {
+		Token string `json:"token"`
+	}
+
+	_ = c.Bind(&body)
+
+	if body.Token != "" {
+		var claim model.CustomClaims
+		_ = helper.DecodeToken(body.Token, &claim)
+
+		if claim.UserID != 0 {
+			_ = h.userUsecase.UpdateOnlineStatus(ctx, claim.UserID, false)
+		}
+	}
+
+	return c.NoContent(http.StatusOK)
 }

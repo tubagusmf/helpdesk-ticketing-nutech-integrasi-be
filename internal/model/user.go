@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v4"
 )
 
 type ContextAuthKey string
@@ -29,6 +29,7 @@ type User struct {
 	Role      Role       `json:"role"`
 	IsActive  bool       `json:"is_active"`
 	IsOnline  bool       `json:"is_online"`
+	LastSeen  *time.Time `json:"last_seen"`
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"-"`
@@ -44,6 +45,7 @@ type IUserRepository interface {
 	Update(ctx context.Context, user User) error
 	Delete(ctx context.Context, id int64) error
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
+	UpdateLastSeen(ctx context.Context, userID int64) error
 }
 
 type IUserUsecase interface {
@@ -54,6 +56,7 @@ type IUserUsecase interface {
 	Update(ctx context.Context, id int64, in UpdateUserInput) error
 	Delete(ctx context.Context, id int64) error
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
+	UpdateLastSeen(ctx context.Context, userID int64) error
 }
 
 type LoginInput struct {

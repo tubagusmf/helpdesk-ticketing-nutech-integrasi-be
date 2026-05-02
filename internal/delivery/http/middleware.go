@@ -2,17 +2,26 @@ package http
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"strings"
 
+	"github.com/golang-jwt/jwt/v4"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 
 	"github.com/labstack/echo/v4"
 )
 
+var userUC model.IUserUsecase
+
+func InitAuthMiddleware(uc model.IUserUsecase) {
+	userUC = uc
+}
+
 func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
+
 		authHeader := c.Request().Header.Get(echo.HeaderAuthorization)
 
 		if authHeader == "" {
@@ -28,10 +37,22 @@ func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 
 		var claim model.CustomClaims
 		err := helper.DecodeToken(accessToken, &claim)
+
 		if err != nil {
-			if strings.Contains(err.Error(), "expired") {
+
+			if errors.Is(err, jwt.ErrTokenExpired) {
+
+				if claim.UserID != 0 && userUC != nil {
+					_ = userUC.UpdateOnlineStatus(
+						context.Background(),
+						claim.UserID,
+						false,
+					)
+				}
+
 				return echo.NewHTTPError(http.StatusUnauthorized, "token expired")
 			}
+
 			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
 		}
 
@@ -42,6 +63,7 @@ func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		)
 
 		c.SetRequest(c.Request().WithContext(ctx))
+
 		return next(c)
 	}
 }

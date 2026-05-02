@@ -200,3 +200,7 @@ func (u *UserUsecase) Delete(ctx context.Context, id int64) error {
 func (u *UserUsecase) UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error {
 	return u.userRepo.UpdateOnlineStatus(ctx, userID, isOnline)
 }
+
+func (u *UserUsecase) UpdateLastSeen(ctx context.Context, userID int64) error {
+	return u.userRepo.UpdateLastSeen(ctx, userID)
+}

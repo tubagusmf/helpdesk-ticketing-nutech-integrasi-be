@@ -133,6 +133,12 @@ func (r *UserRepo) FindAll(ctx context.Context, filter model.User, page int, lim
 		query = query.Where("users.is_active = ?", true)
 	}
 
+	if filter.IsOnline {
+		query = query.Where(`
+			users.last_seen > NOW() - INTERVAL '1 minute'
+		`)
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
@@ -214,11 +220,20 @@ func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *UserRepo) UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error {
+	now := time.Now()
+
 	return r.db.WithContext(ctx).
 		Model(&model.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{
 			"is_online": isOnline,
-			"last_seen": time.Now(),
+			"last_seen": now,
 		}).Error
+}
+
+func (r *UserRepo) UpdateLastSeen(ctx context.Context, userID int64) error {
+	return r.db.WithContext(ctx).
+		Model(&model.User{}).
+		Where("id = ?", userID).
+		Update("last_seen", time.Now()).Error
 }

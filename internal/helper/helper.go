@@ -5,7 +5,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/golang-jwt/jwt/v5"
+	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
@@ -30,7 +30,7 @@ func GenerateToken(user model.User) (string, error) {
 		Email:  user.Email,
 		Name:   user.Name,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(1 * time.Hour)),
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(2 * time.Hour)),
 		},
 	}
 
@@ -40,14 +40,15 @@ func GenerateToken(user model.User) (string, error) {
 
 func DecodeToken(tokenString string, claim *model.CustomClaims) error {
 	token, err := jwt.ParseWithClaims(tokenString, claim, func(t *jwt.Token) (interface{}, error) {
-		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, jwt.ErrTokenSignatureInvalid
-		}
-
 		return []byte(config.JWTSigningKey()), nil
 	})
 
 	if err != nil {
+		if ve, ok := err.(*jwt.ValidationError); ok {
+			if ve.Errors&jwt.ValidationErrorExpired != 0 {
+				return jwt.ErrTokenExpired
+			}
+		}
 		return err
 	}
 
