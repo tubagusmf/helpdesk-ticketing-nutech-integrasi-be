@@ -16,6 +16,7 @@ import (
 type TicketUsecase struct {
 	ticketRepo        model.ITicketRepository
 	ticketHistoryRepo model.ITicketHistoryRepository
+	projectRepo       model.IProjectRepository
 	db                *gorm.DB
 }
 
@@ -23,11 +24,13 @@ func NewTicketUsecase(
 	db *gorm.DB,
 	ticketRepo model.ITicketRepository,
 	historyRepo model.ITicketHistoryRepository,
+	projectRepo model.IProjectRepository,
 ) model.ITicketUsecase {
 	return &TicketUsecase{
 		db:                db,
 		ticketRepo:        ticketRepo,
 		ticketHistoryRepo: historyRepo,
+		projectRepo:       projectRepo,
 	}
 }
 
@@ -82,8 +85,20 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		dueAt = now.Add(4 * time.Hour)
 	}
 
+	project, err := u.projectRepo.FindByID(ctx, in.ProjectID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	seq, err := u.getNextTicketSequence(ctx, project.CodePrefix, in.ProjectID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	ticketCode := generateTicketCode(project.CodePrefix, int(seq))
+
 	ticket := model.Ticket{
-		TicketCode:   generateTicketCode(),
+		TicketCode:   ticketCode,
 		ProjectID:    in.ProjectID,
 		LocationID:   in.LocationID,
 		PartID:       in.PartID,
@@ -101,7 +116,7 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		return nil, false, err
 	}
 
-	_, err := u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
+	_, err = u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
 		TicketID: ticket.ID,
 		UserID:   reporterID,
 		Action:   "CREATED",
@@ -229,13 +244,16 @@ func isValidStatus(status model.TicketStatus) bool {
 	}
 }
 
-func generateTicketCode() string {
-	now := time.Now()
-	return fmt.Sprintf("TCK-%d%02d%02d-%d",
+func generateTicketCode(prefix string, seq int) string {
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	now := time.Now().In(loc)
+
+	return fmt.Sprintf("%s-%04d%02d%02d-%04d",
+		prefix,
 		now.Year(),
 		now.Month(),
 		now.Day(),
-		now.Unix()%10000,
+		seq,
 	)
 }
 
@@ -251,4 +269,31 @@ func (u *TicketUsecase) validateStaff(userID int64) error {
 	}
 
 	return nil
+}
+
+func (u *TicketUsecase) getNextTicketSequence(ctx context.Context, projectCode string, projectID int64) (int64, error) {
+	loc, _ := time.LoadLocation("Asia/Jakarta")
+	now := time.Now().In(loc)
+
+	date := now.Format("20060102")
+	key := fmt.Sprintf("ticket:%s:%s", projectCode, date)
+
+	seq, err := config.Rdb.Incr(ctx, key).Result()
+	if err != nil {
+		return 0, err
+	}
+
+	tomorrow := now.Add(24 * time.Hour).Truncate(24 * time.Hour)
+	ttl := time.Until(tomorrow)
+	config.Rdb.Expire(ctx, key, ttl)
+
+	if seq == 1 {
+		count, err := u.ticketRepo.CountByProjectToday(ctx, projectID)
+		if err == nil && count > 0 {
+			seq = count + 1
+			config.Rdb.Set(ctx, key, seq, ttl)
+		}
+	}
+
+	return seq, nil
 }

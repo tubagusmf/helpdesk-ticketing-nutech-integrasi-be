@@ -6,21 +6,24 @@ import (
 )
 
 type Project struct {
-	ID        int64      `json:"id"`
-	Name      string     `json:"name"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"-"`
+	ID         int64      `json:"id"`
+	Name       string     `json:"name"`
+	CodePrefix string     `json:"code_prefix"`
+	CreatedAt  time.Time  `json:"created_at"`
+	UpdatedAt  time.Time  `json:"updated_at"`
+	DeletedAt  *time.Time `json:"-"`
 
 	Users []User `gorm:"many2many:user_projects;" json:"users,omitempty"`
 }
 
 type CreateProjectInput struct {
-	Name string `json:"name" validate:"required"`
+	Name       string `json:"name" validate:"required"`
+	CodePrefix string `json:"code_prefix" validate:"required"`
 }
 
 type UpdateProjectInput struct {
-	Name string `json:"name" validate:"required"`
+	Name       string `json:"name" validate:"required"`
+	CodePrefix string `json:"code_prefix" validate:"required"`
 }
 
 type IProjectRepository interface {

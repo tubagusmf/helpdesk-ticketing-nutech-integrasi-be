@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
@@ -19,9 +20,7 @@ func NewProjectUsecase(projectRepo model.IProjectRepository) model.IProjectUseca
 }
 
 func (u *ProjectUsecase) Create(ctx context.Context, in model.CreateProjectInput) (*model.Project, error) {
-	log := logrus.WithFields(logrus.Fields{
-		"in": in,
-	})
+	log := logrus.WithFields(logrus.Fields{"in": in})
 
 	if err := validate.Struct(in); err != nil {
 		log.Error("Validation error: ", err)
@@ -29,7 +28,8 @@ func (u *ProjectUsecase) Create(ctx context.Context, in model.CreateProjectInput
 	}
 
 	project := model.Project{
-		Name: in.Name,
+		Name:       in.Name,
+		CodePrefix: strings.ToUpper(in.CodePrefix),
 	}
 
 	created, err := u.projectRepo.Create(ctx, project)
@@ -85,6 +85,7 @@ func (u *ProjectUsecase) Update(ctx context.Context, id int64, in model.UpdatePr
 	}
 
 	project.Name = in.Name
+	project.CodePrefix = strings.ToUpper(in.CodePrefix)
 
 	if err := u.projectRepo.Update(ctx, *project); err != nil {
 		log.Error("Failed to update project: ", err)

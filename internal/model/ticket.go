@@ -86,6 +86,7 @@ type ITicketRepository interface {
 	Create(ctx context.Context, ticket Ticket) (*Ticket, error)
 	Update(ctx context.Context, ticket Ticket) error
 	Delete(ctx context.Context, id int64) error
+	CountByProjectToday(ctx context.Context, projectID int64) (int64, error)
 }
 
 type ITicketUsecase interface {

@@ -151,3 +151,15 @@ func (r *TicketRepo) Delete(ctx context.Context, id int64) error {
 		Where("id = ?", id).
 		Update("deleted_at", time.Now()).Error
 }
+
+func (r *TicketRepo) CountByProjectToday(ctx context.Context, projectID int64) (int64, error) {
+	var count int64
+
+	err := r.db.WithContext(ctx).
+		Model(&model.Ticket{}).
+		Where("project_id = ?", projectID).
+		Where("DATE(created_at) = CURRENT_DATE").
+		Count(&count).Error
+
+	return count, err
+}
