@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 	"gorm.io/gorm"
 )
@@ -102,6 +103,21 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
+
+	helper.PublishNotificationEvent(
+		"ticket.resolution",
+		model.NotificationEvent{
+			EventType:     "TICKET_RESOLVED",
+			UserID:        ticket.ReporterID,
+			ActorID:       userID,
+			TicketID:      ticket.ID,
+			TicketCode:    ticket.TicketCode,
+			ReferenceType: "RESOLUTION",
+			ReferenceID:   resolution.ID,
+			Title:         "Ticket Resolved",
+			Message:       "Ticket " + ticket.TicketCode + " resolved",
+		},
+	)
 
 	return createdResolution, nil
 }

@@ -21,18 +21,19 @@ type CustomClaims struct {
 }
 
 type User struct {
-	ID        int64      `json:"id"`
-	Name      string     `json:"name"`
-	Email     string     `json:"email"`
-	Password  string     `json:"-"`
-	RoleID    int64      `json:"role_id"`
-	Role      Role       `json:"role"`
-	IsActive  bool       `json:"is_active"`
-	IsOnline  bool       `json:"is_online"`
-	LastSeen  *time.Time `json:"last_seen"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
-	DeletedAt *time.Time `json:"-"`
+	ID                   int64      `json:"id"`
+	Name                 string     `json:"name"`
+	Email                string     `json:"email"`
+	Password             string     `json:"-"`
+	RoleID               int64      `json:"role_id"`
+	Role                 Role       `json:"role"`
+	IsActive             bool       `json:"is_active"`
+	IsOnline             bool       `json:"is_online"`
+	LastSeen             *time.Time `json:"last_seen"`
+	LastTicketAssignedAt *time.Time `json:"last_ticket_assigned_at"`
+	CreatedAt            time.Time  `json:"created_at"`
+	UpdatedAt            time.Time  `json:"updated_at"`
+	DeletedAt            *time.Time `json:"-"`
 
 	Projects []Project `gorm:"many2many:user_projects;" json:"projects,omitempty"`
 }

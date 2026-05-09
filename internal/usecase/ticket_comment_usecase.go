@@ -4,21 +4,25 @@ import (
 	"context"
 
 	"github.com/sirupsen/logrus"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 )
 
 type TicketCommentUsecase struct {
 	repo              model.ITicketCommentRepository
 	ticketHistoryRepo model.ITicketHistoryRepository
+	ticketRepo        model.ITicketRepository
 }
 
 func NewTicketCommentUsecase(
 	repo model.ITicketCommentRepository,
 	ticketHistoryRepo model.ITicketHistoryRepository,
+	ticketRepo model.ITicketRepository,
 ) model.ITicketCommentUsecase {
 	return &TicketCommentUsecase{
 		repo:              repo,
 		ticketHistoryRepo: ticketHistoryRepo,
+		ticketRepo:        ticketRepo,
 	}
 }
 
@@ -45,6 +49,31 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 		log.Error("FAILED insert history COMMENT: ", err)
 	} else {
 		log.Info("SUCCESS insert history COMMENT")
+	}
+
+	ticket, err := u.ticketRepo.FindByID(ctx, comment.TicketID)
+	if err != nil {
+		log.Error("Failed find ticket:", err)
+		return nil, err
+	}
+
+	err = helper.PublishNotificationEvent(
+		"ticket.comment",
+		model.NotificationEvent{
+			EventType:     "TICKET_COMMENT",
+			UserID:        ticket.ReporterID,
+			ActorID:       comment.UserID,
+			TicketID:      ticket.ID,
+			TicketCode:    ticket.TicketCode,
+			ReferenceType: "COMMENT",
+			ReferenceID:   result.ID,
+			Title:         "New Comment",
+			Message:       "New comment added to ticket " + ticket.TicketCode,
+		},
+	)
+
+	if err != nil {
+		log.Error("Failed publish notification:", err)
 	}
 
 	return result, nil

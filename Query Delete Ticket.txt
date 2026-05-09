@@ -1,0 +1,23 @@
+//Jika tidak bisa delete, jalankan Rollback dulu
+    ROLLBACK;
+
+
+BEGIN;
+
+DELETE FROM ticket_histories
+WHERE ticket_id = 107;
+
+DELETE FROM notifications
+WHERE ticket_id = 107;
+
+DELETE FROM tickets
+WHERE id = 107;
+
+COMMIT;
+
+
+Reset last_ticket_assigned_at
+
+UPDATE users
+SET last_ticket_assigned_at = NULL
+WHERE role_id = 2;

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 	"gorm.io/gorm"
 )
@@ -40,70 +41,141 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 	w.db.Where("role_id = 2 AND is_online = true").Find(&staffs)
 
 	if len(staffs) == 0 {
-		log.Println("No staff online, retry later")
+
+		log.Println("[WORKER] no staff online, retry later")
 
 		data, _ := json.Marshal(ticket)
-		config.Rdb.LPush(context.Background(), "ticket_queue", data)
 
 		time.Sleep(10 * time.Second)
+
+		config.Rdb.LPush(
+			context.Background(),
+			"ticket_queue",
+			data,
+		)
+
 		return
 	}
 
 	type StaffLoad struct {
-		User  model.User
-		Count int64
-		Last  *time.Time
+		User model.User
+		Last *time.Time
 	}
 
 	var candidates []StaffLoad
 
 	for _, s := range staffs {
-
-		var count int64
-		w.db.Model(&model.Ticket{}).
-			Where("assigned_to_id = ? AND status IN ?", s.ID, []string{"OPEN", "IN_PROGRESS"}).
-			Count(&count)
-
-		var lastTicket model.Ticket
-		err := w.db.
-			Where("assigned_to_id = ?", s.ID).
-			Order("created_at DESC").
-			First(&lastTicket).Error
-
-		var lastTime *time.Time
-		if err == nil {
-			lastTime = &lastTicket.CreatedAt
-		}
-
+		lastTime := s.LastTicketAssignedAt
 		candidates = append(candidates, StaffLoad{
-			User:  s,
-			Count: count,
-			Last:  lastTime,
+			User: s,
+			Last: lastTime,
 		})
 	}
 
-	var filtered []StaffLoad
+	var available []StaffLoad
 	now := time.Now()
 
 	for _, c := range candidates {
-		if c.Last == nil || now.Sub(*c.Last) > 2*time.Minute {
-			filtered = append(filtered, c)
+
+		if c.Last != nil {
+			log.Printf(
+				"[WORKER] staff=%s last_assign=%v diff=%v",
+				c.User.Name,
+				*c.Last,
+				now.Sub(*c.Last),
+			)
+		}
+
+		if c.Last == nil {
+			available = append(available, c)
+			continue
+		}
+
+		if now.Sub(*c.Last) >= 2*time.Minute {
+			available = append(available, c)
 		}
 	}
 
-	if len(filtered) == 0 {
-		filtered = candidates
+	if len(available) == 0 {
+
+		log.Println("[WORKER] all staff still in cooldown, retry later")
+
+		data, _ := json.Marshal(ticket)
+
+		time.Sleep(10 * time.Second)
+
+		config.Rdb.LPush(
+			context.Background(),
+			"ticket_queue",
+			data,
+		)
+
+		return
 	}
 
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].Count < filtered[j].Count
+	sort.Slice(available, func(i, j int) bool {
+
+		if available[i].Last == nil {
+			return true
+		}
+
+		if available[j].Last == nil {
+			return false
+		}
+
+		if available[i].Last.Equal(*available[j].Last) {
+			return available[i].User.ID < available[j].User.ID
+		}
+
+		return available[i].Last.Before(*available[j].Last)
 	})
 
-	selected := filtered[0].User
+	selected := available[0].User
 
-	w.db.Model(&model.Ticket{}).
-		Where("id = ?", ticket.ID).
+	result := w.db.Model(&model.Ticket{}).
+		Where("id = ? AND assigned_to_id IS NULL", ticket.ID).
 		Update("assigned_to_id", selected.ID)
 
-	log.Printf("Assigned ticket ID: %d to staff ID: %d (%s)", ticket.ID, selected.ID, selected.Name)
+	if result.Error != nil {
+		log.Println("failed assign ticket:", result.Error)
+		return
+	}
+
+	if result.RowsAffected == 0 {
+		log.Printf(
+			"[WORKER] ticket %d already assigned by another process",
+			ticket.ID,
+		)
+		return
+	}
+
+	nowAssign := time.Now()
+
+	err := w.db.Model(&model.User{}).
+		Where("id = ?", selected.ID).
+		Update("last_ticket_assigned_at", nowAssign).Error
+
+	if err != nil {
+		log.Println("failed update last_ticket_assigned_at:", err)
+	}
+
+	err = helper.PublishNotificationEvent(
+		"ticket.created",
+		model.NotificationEvent{
+			EventType:     "TICKET_ASSIGNED",
+			UserID:        selected.ID,
+			ActorID:       ticket.ReporterID,
+			TicketID:      ticket.ID,
+			TicketCode:    ticket.TicketCode,
+			ReferenceType: "TICKET",
+			ReferenceID:   ticket.ID,
+			Title:         "Tiket Masuk",
+			Message:       "Kamu Menerima Tiket " + ticket.TicketCode,
+		},
+	)
+
+	if err != nil {
+		log.Println("failed publish notification:", err)
+	}
+
 }

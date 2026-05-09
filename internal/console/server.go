@@ -9,6 +9,7 @@ import (
 	"github.com/joho/godotenv"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/db"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/consumer"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/repository"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/usecase"
@@ -43,6 +44,10 @@ func httpServer(cmd *cobra.Command, args []string) {
 
 	config.InitRedis()
 
+	config.InitRabbitMQ(
+		os.Getenv("RABBITMQ_URL"),
+	)
+
 	err = helper.InitCloudinary(
 		config.CloudinaryCloudName(),
 		config.CloudinaryAPIKey(),
@@ -75,6 +80,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	ticketComment := repository.NewTicketCommentRepo(postgresDB)
 	ticketResolution := repository.NewTicketResolutionRepo(postgresDB)
 	dashboardRepo := repository.NewDashboardRepo(postgresDB)
+	notificationRepo := repository.NewNotificationRepo(postgresDB)
 
 	userUsecase := usecase.NewUserUsecase(userRepo, projectRepo)
 	roleUsecase := usecase.NewRoleUsecase(roleRepo)
@@ -86,12 +92,17 @@ func httpServer(cmd *cobra.Command, args []string) {
 	solutionUsecase := usecase.NewSolutionUsecase(solutionRepo)
 	ticketUsecase := usecase.NewTicketUsecase(postgresDB, ticketRepo, ticketHistoryRepo, projectRepo)
 	ticketHistoryUsecase := usecase.NewTicketHistoryUsecase(ticketHistoryRepo)
-	ticketCommentUsecase := usecase.NewTicketCommentUsecase(ticketComment, ticketHistoryRepo)
+	ticketCommentUsecase := usecase.NewTicketCommentUsecase(ticketComment, ticketHistoryRepo, ticketRepo)
 	ticketResolutionUsecase := usecase.NewTicketResolutionUsecase(postgresDB, ticketResolution, ticketHistoryRepo, ticketRepo)
 	dashboardUsecase := usecase.NewDashboardUsecase(dashboardRepo)
+	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo)
 
 	ticketWorker := worker.NewTicketWorker(postgresDB)
 	go ticketWorker.Start()
+
+	consumer.StartNotificationConsumer(
+		notificationUsecase,
+	)
 
 	e := echo.New()
 
@@ -108,6 +119,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewTicketCommentHandler(e, ticketCommentUsecase, ticketUsecase)
 	handlerHttp.NewTicketResolutionHandler(e, ticketResolutionUsecase)
 	handlerHttp.NewDashboardHandler(e, dashboardUsecase)
+	handlerHttp.NewNotificationHandler(e, notificationUsecase)
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"http://localhost:5173", "http://localhost:3001"},

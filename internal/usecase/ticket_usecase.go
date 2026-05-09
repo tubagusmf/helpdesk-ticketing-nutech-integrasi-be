@@ -68,7 +68,7 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		Where("role_id = 2 AND is_online = true").
 		Count(&count)
 
-	isAssigned := count > 0
+	isAssigned := false
 
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	now := time.Now().In(loc)
@@ -116,11 +116,27 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		return nil, false, err
 	}
 
+	if err := u.db.WithContext(ctx).
+		First(&ticket, ticket.ID).Error; err != nil {
+		return nil, false, err
+	}
+
 	_, err = u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
 		TicketID: ticket.ID,
 		UserID:   reporterID,
 		Action:   "CREATED",
 	})
+
+	if ticket.AssignedToID != nil {
+		logrus.Infof(
+			"ticket saved assigned_to_id=%d",
+			*ticket.AssignedToID,
+		)
+	} else {
+		logrus.Infof(
+			"ticket saved with no assigned staff yet",
+		)
+	}
 
 	if err != nil {
 		logrus.Error("failed insert CREATED history:", err)
