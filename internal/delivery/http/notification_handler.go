@@ -21,10 +21,10 @@ func NewNotificationHandler(
 	}
 
 	group := e.Group("/v1/notifications")
-
 	group.GET("", handler.FindAllByUserID, AuthMiddleware)
 	group.PUT("/:id/read", handler.MarkAsRead, AuthMiddleware)
 	group.GET("/unread/count", handler.CountUnread, AuthMiddleware)
+	group.DELETE("/:id", handler.Delete, AuthMiddleware)
 }
 
 func (h *NotificationHandler) FindAllByUserID(c echo.Context) error {
@@ -84,5 +84,35 @@ func (h *NotificationHandler) CountUnread(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"total_unread": total,
+	})
+}
+
+func (h *NotificationHandler) Delete(c echo.Context) error {
+	claim := c.Request().Context().
+		Value(model.BearerAuthKey).(*model.CustomClaims)
+
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid id",
+		)
+	}
+
+	err = h.notificationUsecase.Delete(
+		c.Request().Context(),
+		id,
+		claim.UserID,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "notification deleted",
 	})
 }

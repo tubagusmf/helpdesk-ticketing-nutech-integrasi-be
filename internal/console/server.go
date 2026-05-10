@@ -100,6 +100,12 @@ func httpServer(cmd *cobra.Command, args []string) {
 	ticketWorker := worker.NewTicketWorker(postgresDB)
 	go ticketWorker.Start()
 
+	notificationCleaner := worker.NewNotificationCleaner(
+		notificationUsecase,
+	)
+
+	go notificationCleaner.Start()
+
 	consumer.StartNotificationConsumer(
 		notificationUsecase,
 	)

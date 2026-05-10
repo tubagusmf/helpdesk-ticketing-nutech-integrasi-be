@@ -39,6 +39,7 @@ type Ticket struct {
 	ResolvedAt   *time.Time     `json:"resolved_at"`
 	PausedAt     *time.Time     `json:"paused_at"`
 	TotalPaused  int64          `json:"total_paused"`
+	Reporter     User           `json:"reporter"`
 
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`

@@ -91,7 +91,7 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 			continue
 		}
 
-		if now.Sub(*c.Last) >= 2*time.Minute {
+		if now.Sub(*c.Last) >= 1*time.Minute {
 			available = append(available, c)
 		}
 	}
@@ -159,6 +159,8 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 		log.Println("failed update last_ticket_assigned_at:", err)
 	}
 
+	w.db.Preload("Reporter").First(&ticket, ticket.ID)
+
 	err = helper.PublishNotificationEvent(
 		"ticket.created",
 		model.NotificationEvent{
@@ -170,7 +172,7 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 			ReferenceType: "TICKET",
 			ReferenceID:   ticket.ID,
 			Title:         "Tiket Masuk",
-			Message:       "Kamu Menerima Tiket " + ticket.TicketCode,
+			Message:       "No Tiket: " + ticket.TicketCode + " | Pelapor: " + ticket.Reporter.Name,
 		},
 	)
 

@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"time"
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 )
@@ -18,11 +19,7 @@ func NewNotificationUsecase(
 	}
 }
 
-func (u *NotificationUsecase) Create(
-	ctx context.Context,
-	in model.CreateNotificationInput,
-) (*model.Notification, error) {
-
+func (u *NotificationUsecase) Create(ctx context.Context, in model.CreateNotificationInput) (*model.Notification, error) {
 	notification := model.Notification{
 		UserID:        in.UserID,
 		ActorID:       in.ActorID,
@@ -38,24 +35,22 @@ func (u *NotificationUsecase) Create(
 	return u.notificationRepo.Create(ctx, notification)
 }
 
-func (u *NotificationUsecase) FindAllByUserID(
-	ctx context.Context,
-	userID int64,
-) ([]*model.NotificationResponse, error) {
+func (u *NotificationUsecase) FindAllByUserID(ctx context.Context, userID int64) ([]*model.NotificationResponse, error) {
 	return u.notificationRepo.FindAllByUserID(ctx, userID)
 }
 
-func (u *NotificationUsecase) MarkAsRead(
-	ctx context.Context,
-	id int64,
-	userID int64,
-) error {
+func (u *NotificationUsecase) MarkAsRead(ctx context.Context, id int64, userID int64) error {
 	return u.notificationRepo.MarkAsRead(ctx, id, userID)
 }
 
-func (u *NotificationUsecase) CountUnread(
-	ctx context.Context,
-	userID int64,
-) (int64, error) {
+func (u *NotificationUsecase) CountUnread(ctx context.Context, userID int64) (int64, error) {
 	return u.notificationRepo.CountUnread(ctx, userID)
+}
+
+func (u *NotificationUsecase) Delete(ctx context.Context, id int64, userID int64) error {
+	return u.notificationRepo.Delete(ctx, id, userID)
+}
+
+func (u *NotificationUsecase) DeleteExpired(ctx context.Context, before time.Time) error {
+	return u.notificationRepo.DeleteExpired(ctx, before)
 }

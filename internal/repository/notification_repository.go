@@ -70,3 +70,15 @@ func (r *NotificationRepo) CountUnread(ctx context.Context, userID int64) (int64
 
 	return total, err
 }
+
+func (r *NotificationRepo) Delete(ctx context.Context, id int64, userID int64) error {
+	return r.db.WithContext(ctx).
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&model.Notification{}).Error
+}
+
+func (r *NotificationRepo) DeleteExpired(ctx context.Context, before time.Time) error {
+	return r.db.WithContext(ctx).
+		Where("created_at < ?", before).
+		Delete(&model.Notification{}).Error
+}

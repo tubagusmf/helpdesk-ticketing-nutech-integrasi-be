@@ -65,6 +65,8 @@ type INotificationRepository interface {
 	FindAllByUserID(ctx context.Context, userID int64) ([]*NotificationResponse, error)
 	MarkAsRead(ctx context.Context, id int64, userID int64) error
 	CountUnread(ctx context.Context, userID int64) (int64, error)
+	Delete(ctx context.Context, id int64, userID int64) error
+	DeleteExpired(ctx context.Context, before time.Time) error
 }
 
 type INotificationUsecase interface {
@@ -72,4 +74,6 @@ type INotificationUsecase interface {
 	FindAllByUserID(ctx context.Context, userID int64) ([]*NotificationResponse, error)
 	MarkAsRead(ctx context.Context, id int64, userID int64) error
 	CountUnread(ctx context.Context, userID int64) (int64, error)
+	Delete(ctx context.Context, id int64, userID int64) error
+	DeleteExpired(ctx context.Context, before time.Time) error
 }
