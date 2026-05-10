@@ -46,3 +46,51 @@ func (r *TicketCommentRepo) FindByTicketID(ctx context.Context, ticketID int64) 
 
 	return comments, nil
 }
+
+func (r *TicketCommentRepo) CountUnreadByTicket(ctx context.Context, ticketID int64, role string, userID int64) (int64, error) {
+	var count int64
+
+	query := r.db.WithContext(ctx).
+		Table("ticket_comments").
+		Where("ticket_id = ?", ticketID).
+		Where("user_id != ?", userID)
+
+	if role == "USER" {
+
+		query = query.Where("is_read_by_user = false")
+
+	} else if role == "STAFF" {
+
+		query = query.Where("is_read_by_staff = false")
+
+	} else if role == "ADMINISTRATOR" {
+
+		query = query.Where("is_read_by_administrator = false")
+	}
+
+	err := query.Count(&count).Error
+
+	return count, err
+}
+
+func (r *TicketCommentRepo) MarkAsRead(ctx context.Context, ticketID int64, role string) error {
+	updates := map[string]interface{}{}
+
+	if role == "USER" {
+
+		updates["is_read_by_user"] = true
+
+	} else if role == "STAFF" {
+
+		updates["is_read_by_staff"] = true
+
+	} else if role == "ADMINISTRATOR" {
+
+		updates["is_read_by_administrator"] = true
+	}
+
+	return r.db.WithContext(ctx).
+		Table("ticket_comments").
+		Where("ticket_id = ?", ticketID).
+		Updates(updates).Error
+}

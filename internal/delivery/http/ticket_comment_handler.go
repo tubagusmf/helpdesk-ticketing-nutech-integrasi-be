@@ -20,9 +20,9 @@ func NewTicketCommentHandler(e *echo.Echo, u model.ITicketCommentUsecase, ticket
 	}
 
 	group := e.Group("/v1/tickets")
-
 	group.POST("/:id/comments", handler.Create, AuthMiddleware)
 	group.GET("/:id/comments", handler.GetByTicketID, AuthMiddleware)
+	group.PUT("/:id/comments/read", handler.MarkAsRead, AuthMiddleware)
 }
 
 func (h *TicketCommentHandler) Create(c echo.Context) error {
@@ -93,5 +93,38 @@ func (h *TicketCommentHandler) GetByTicketID(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "comments fetched successfully",
 		"data":    comments,
+	})
+}
+
+func (h *TicketCommentHandler) MarkAsRead(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	idParam := c.Param("id")
+
+	ticketID, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid ticket id")
+	}
+
+	claims, ok := ctx.Value(model.BearerAuthKey).(*model.CustomClaims)
+	if !ok || claims == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	err = h.usecase.MarkAsRead(
+		ctx,
+		ticketID,
+		claims.Role,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "comments marked as read",
 	})
 }

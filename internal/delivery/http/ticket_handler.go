@@ -131,6 +131,13 @@ func (h *TicketHandler) FindAll(c echo.Context) error {
 		Status:       model.TicketStatus(status),
 	}
 
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	claims := claimValue.(*model.CustomClaims)
+
 	tickets, total, err := h.ticketUsecase.FindAll(
 		c.Request().Context(),
 		filter,
@@ -139,6 +146,8 @@ func (h *TicketHandler) FindAll(c echo.Context) error {
 		endDate,
 		page,
 		limit,
+		claims.Role,
+		claims.UserID,
 	)
 
 	if err != nil {
@@ -222,6 +231,13 @@ func (h *TicketHandler) Delete(c echo.Context) error {
 }
 
 func (h *TicketHandler) Export(c echo.Context) error {
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	claims := claimValue.(*model.CustomClaims)
+
 	projectID, _ := strconv.ParseInt(c.QueryParam("project_id"), 10, 64)
 	staffID, _ := strconv.ParseInt(c.QueryParam("assigned_to_id"), 10, 64)
 	reporterID, _ := strconv.ParseInt(c.QueryParam("reporter_id"), 10, 64)
@@ -255,6 +271,8 @@ func (h *TicketHandler) Export(c echo.Context) error {
 		endDate,
 		1,
 		10000,
+		claims.Role,
+		claims.UserID,
 	)
 
 	if err != nil {
@@ -272,8 +290,15 @@ func (h *TicketHandler) Export(c echo.Context) error {
 		uuid.New().String()[:8],
 	)
 
-	c.Response().Header().Set(echo.HeaderContentDisposition, "attachment; filename="+fileName)
-	c.Response().Header().Set(echo.HeaderContentType, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+	c.Response().Header().Set(
+		echo.HeaderContentDisposition,
+		"attachment; filename="+fileName,
+	)
+
+	c.Response().Header().Set(
+		echo.HeaderContentType,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	)
 
 	return c.Blob(
 		http.StatusOK,

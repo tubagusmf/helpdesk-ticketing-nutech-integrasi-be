@@ -47,23 +47,24 @@ type Ticket struct {
 }
 
 type TicketResponse struct {
-	ID             int64     `json:"id"`
-	TicketCode     string    `json:"ticket_code"`
-	Priority       string    `json:"priority"`
-	Status         string    `json:"status"`
-	Description    string    `json:"description"`
-	Attachment     *string   `json:"attachment_url"`
-	ProjectName    string    `json:"project_name"`
-	LocationName   string    `json:"location_name"`
-	AssetCode      string    `json:"asset_code"`
-	PartID         int64     `json:"part_id"`
-	PartName       string    `json:"part_name"`
-	AssetID        int64     `json:"asset_id"`
-	ReporterName   string    `json:"reporter_name"`
-	ReporterID     int64     `json:"reporter_id"`
-	AssignedToName string    `json:"assigned_to_name"`
-	CreatedAt      time.Time `json:"created_at"`
-	DueAt          time.Time `json:"due_at"`
+	ID                 int64     `json:"id"`
+	TicketCode         string    `json:"ticket_code"`
+	Priority           string    `json:"priority"`
+	Status             string    `json:"status"`
+	Description        string    `json:"description"`
+	Attachment         *string   `json:"attachment_url"`
+	ProjectName        string    `json:"project_name"`
+	LocationName       string    `json:"location_name"`
+	AssetCode          string    `json:"asset_code"`
+	PartID             int64     `json:"part_id"`
+	PartName           string    `json:"part_name"`
+	AssetID            int64     `json:"asset_id"`
+	ReporterName       string    `json:"reporter_name"`
+	ReporterID         int64     `json:"reporter_id"`
+	AssignedToName     string    `json:"assigned_to_name"`
+	CreatedAt          time.Time `json:"created_at"`
+	DueAt              time.Time `json:"due_at"`
+	UnreadCommentCount int64     `json:"unread_comment_count"`
 }
 
 type CreateTicketInput struct {
@@ -82,7 +83,7 @@ type UpdateTicketStatusInput struct {
 }
 
 type ITicketRepository interface {
-	FindAll(ctx context.Context, filter Ticket, search string, startDate string, endDate string, page int, limit int) ([]*TicketResponse, int64, error)
+	FindAll(ctx context.Context, filter Ticket, search string, startDate string, endDate string, page int, limit int, role string, userID int64) ([]*TicketResponse, int64, error)
 	FindByID(ctx context.Context, id int64) (*Ticket, error)
 	Create(ctx context.Context, ticket Ticket) (*Ticket, error)
 	Update(ctx context.Context, ticket Ticket) error
@@ -91,7 +92,7 @@ type ITicketRepository interface {
 }
 
 type ITicketUsecase interface {
-	FindAll(ctx context.Context, filter Ticket, search string, startDate string, endDate string, page int, limit int) ([]*TicketResponse, int64, error)
+	FindAll(ctx context.Context, filter Ticket, search string, startDate string, endDate string, page int, limit int, role string, userID int64) ([]*TicketResponse, int64, error)
 	FindByID(ctx context.Context, id int64) (*Ticket, error)
 	Create(ctx context.Context, reporterID int64, in CreateTicketInput, attachmentPath *string) (*Ticket, bool, error)
 	UpdateStatus(ctx context.Context, id int64, userID int64, in UpdateTicketStatusInput) error
