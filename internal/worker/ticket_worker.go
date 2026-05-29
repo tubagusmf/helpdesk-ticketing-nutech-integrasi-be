@@ -7,18 +7,27 @@ import (
 	"sort"
 	"time"
 
+	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
+	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 	"gorm.io/gorm"
 )
 
 type TicketWorker struct {
-	db *gorm.DB
+	db  *gorm.DB
+	hub *ws.Hub
 }
 
-func NewTicketWorker(db *gorm.DB) *TicketWorker {
-	return &TicketWorker{db: db}
+func NewTicketWorker(
+	db *gorm.DB,
+	hub *ws.Hub,
+) *TicketWorker {
+	return &TicketWorker{
+		db:  db,
+		hub: hub,
+	}
 }
 
 func (w *TicketWorker) Start() {
@@ -160,6 +169,105 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 	}
 
 	w.db.Preload("Reporter").First(&ticket, ticket.ID)
+
+	var updatedTicket model.TicketResponse
+
+	err = w.db.
+		Table("tickets").
+		Select(`
+		tickets.id,
+		tickets.ticket_code,
+		tickets.priority,
+		tickets.status,
+		tickets.description,
+		tickets.created_at,
+		tickets.due_at,
+		tickets.reporter_id,
+		tickets.part_id,
+		tickets.asset_id,
+		tickets.attachment,
+		tickets.assigned_to_id,
+
+		reporter.name as reporter_name,
+		assigned.name as assigned_to_name,
+		projects.name as project_name,
+		locations.name as location_name,
+		parts.name as part_name,
+		asset_ids.name as asset_code
+	`).
+		Joins(`
+		LEFT JOIN users reporter
+		ON reporter.id = tickets.reporter_id
+	`).
+		Joins(`
+		LEFT JOIN users assigned
+		ON assigned.id = tickets.assigned_to_id
+	`).
+		Joins(`
+		LEFT JOIN projects
+		ON projects.id = tickets.project_id
+	`).
+		Joins(`
+		LEFT JOIN locations
+		ON locations.id = tickets.location_id
+	`).
+		Joins(`
+		LEFT JOIN parts
+		ON parts.id = tickets.part_id
+	`).
+		Joins(`
+		LEFT JOIN asset_ids
+		ON asset_ids.id = tickets.asset_id
+	`).
+		Where("tickets.id = ?", ticket.ID).
+		Scan(&updatedTicket).Error
+
+	if err != nil {
+		logrus.Error(
+			"failed load updated ticket:",
+			err,
+		)
+		return
+	}
+
+	log.Printf(
+		"[WORKER] ticket assigned ticket_id=%d assigned_to=%d",
+		ticket.ID,
+		selected.ID,
+	)
+
+	message := ws.Message{
+		Type: ws.EventNewTicket,
+		Data: updatedTicket,
+	}
+
+	payload, _ := json.Marshal(message)
+
+	go func() {
+		w.hub.BroadcastToRole <- ws.RoleMessage{
+			Role:    "STAFF",
+			Message: payload,
+		}
+	}()
+
+	go func() {
+		w.hub.BroadcastToRole <- ws.RoleMessage{
+			Role:    "ADMINISTRATOR",
+			Message: payload,
+		}
+	}()
+
+	go func() {
+		w.hub.BroadcastToRole <- ws.RoleMessage{
+			Role:    "USER",
+			Message: payload,
+		}
+	}()
+
+	log.Printf(
+		"[WORKER] websocket broadcast sent ticket_id=%d",
+		ticket.ID,
+	)
 
 	err = helper.PublishNotificationEvent(
 		"ticket.created",

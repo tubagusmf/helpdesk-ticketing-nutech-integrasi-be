@@ -47,18 +47,7 @@ func (r *TicketRepo) FindByID(ctx context.Context, id int64) (*model.Ticket, err
 	return &ticket, nil
 }
 
-func (r *TicketRepo) FindAll(
-	ctx context.Context,
-	filter model.Ticket,
-	search string,
-	startDate string,
-	endDate string,
-	page int,
-	limit int,
-	role string,
-	userID int64,
-) ([]*model.TicketResponse, int64, error) {
-
+func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search string, startDate string, endDate string, page int, limit int, role string, userID int64) ([]*model.TicketResponse, int64, error) {
 	var tickets []*model.TicketResponse
 	var total int64
 
@@ -175,6 +164,7 @@ func (r *TicketRepo) FindAll(
 			tickets.part_id,
 			tickets.asset_id,
 			tickets.attachment,
+			tickets.assigned_to_id,
 
 			projects.name as project_name,
 			locations.name as location_name,
@@ -238,4 +228,46 @@ func (r *TicketRepo) CountByProjectToday(ctx context.Context, projectID int64) (
 		Count(&count).Error
 
 	return count, err
+}
+
+func (r *TicketRepo) FindResponseByID(ctx context.Context, id int64) (*model.TicketResponse, error) {
+	var ticket model.TicketResponse
+
+	err := r.db.WithContext(ctx).
+		Table("tickets").
+		Select(`
+			tickets.id,
+			tickets.ticket_code,
+			tickets.priority,
+			tickets.status,
+			tickets.description,
+			tickets.created_at,
+			tickets.due_at,
+			tickets.reporter_id,
+			tickets.part_id,
+			tickets.asset_id,
+			tickets.attachment,
+			tickets.assigned_to_id,
+
+			projects.name as project_name,
+			locations.name as location_name,
+			parts.name as part_name,
+			asset_ids.name as asset_code,
+			reporter.name as reporter_name,
+			assigned.name as assigned_to_name
+		`).
+		Joins("LEFT JOIN projects ON projects.id = tickets.project_id").
+		Joins("LEFT JOIN locations ON locations.id = tickets.location_id").
+		Joins("LEFT JOIN parts ON parts.id = tickets.part_id").
+		Joins("LEFT JOIN asset_ids ON asset_ids.id = tickets.asset_id").
+		Joins("LEFT JOIN users as reporter ON reporter.id = tickets.reporter_id").
+		Joins("LEFT JOIN users as assigned ON assigned.id = tickets.assigned_to_id").
+		Where("tickets.id = ?", id).
+		Scan(&ticket).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &ticket, nil
 }

@@ -61,6 +61,7 @@ type TicketResponse struct {
 	AssetID            int64     `json:"asset_id"`
 	ReporterName       string    `json:"reporter_name"`
 	ReporterID         int64     `json:"reporter_id"`
+	AssignedToID       *int64    `json:"assigned_to_id"`
 	AssignedToName     string    `json:"assigned_to_name"`
 	CreatedAt          time.Time `json:"created_at"`
 	DueAt              time.Time `json:"due_at"`
@@ -89,6 +90,7 @@ type ITicketRepository interface {
 	Update(ctx context.Context, ticket Ticket) error
 	Delete(ctx context.Context, id int64) error
 	CountByProjectToday(ctx context.Context, projectID int64) (int64, error)
+	FindResponseByID(ctx context.Context, id int64) (*TicketResponse, error)
 }
 
 type ITicketUsecase interface {

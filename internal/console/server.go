@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/cobra"
 
 	handlerHttp "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/delivery/http"
+	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 )
 
 func init() {
@@ -82,6 +83,10 @@ func httpServer(cmd *cobra.Command, args []string) {
 	dashboardRepo := repository.NewDashboardRepo(postgresDB)
 	notificationRepo := repository.NewNotificationRepo(postgresDB)
 
+	hub := ws.NewHub()
+
+	go hub.Run()
+
 	userUsecase := usecase.NewUserUsecase(userRepo, projectRepo)
 	roleUsecase := usecase.NewRoleUsecase(roleRepo)
 	projectUsecase := usecase.NewProjectUsecase(projectRepo)
@@ -90,14 +95,14 @@ func httpServer(cmd *cobra.Command, args []string) {
 	assetIDUsecase := usecase.NewAssetIDUsecase(assetIDRepo)
 	causeUsecase := usecase.NewCauseUsecase(causeRepo)
 	solutionUsecase := usecase.NewSolutionUsecase(solutionRepo)
-	ticketUsecase := usecase.NewTicketUsecase(postgresDB, ticketRepo, ticketHistoryRepo, projectRepo)
+	ticketUsecase := usecase.NewTicketUsecase(postgresDB, ticketRepo, ticketHistoryRepo, projectRepo, hub)
 	ticketHistoryUsecase := usecase.NewTicketHistoryUsecase(ticketHistoryRepo)
-	ticketCommentUsecase := usecase.NewTicketCommentUsecase(ticketComment, ticketHistoryRepo, ticketRepo)
-	ticketResolutionUsecase := usecase.NewTicketResolutionUsecase(postgresDB, ticketResolution, ticketHistoryRepo, ticketRepo)
+	ticketCommentUsecase := usecase.NewTicketCommentUsecase(ticketComment, ticketHistoryRepo, ticketRepo, hub)
+	ticketResolutionUsecase := usecase.NewTicketResolutionUsecase(postgresDB, ticketResolution, ticketHistoryRepo, ticketRepo, hub)
 	dashboardUsecase := usecase.NewDashboardUsecase(dashboardRepo)
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo)
 
-	ticketWorker := worker.NewTicketWorker(postgresDB)
+	ticketWorker := worker.NewTicketWorker(postgresDB, hub)
 	go ticketWorker.Start()
 
 	notificationCleaner := worker.NewNotificationCleaner(
@@ -126,6 +131,10 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewTicketResolutionHandler(e, ticketResolutionUsecase)
 	handlerHttp.NewDashboardHandler(e, dashboardUsecase)
 	handlerHttp.NewNotificationHandler(e, notificationUsecase)
+
+	wsHandler := ws.NewHandler(hub)
+
+	e.GET("/ws", wsHandler.Handle)
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
 		AllowOrigins: []string{"http://localhost:5173", "http://localhost:3001"},

@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
+	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 	"gorm.io/gorm"
 )
 
@@ -18,6 +19,7 @@ type TicketUsecase struct {
 	ticketHistoryRepo model.ITicketHistoryRepository
 	projectRepo       model.IProjectRepository
 	db                *gorm.DB
+	hub               *ws.Hub
 }
 
 func NewTicketUsecase(
@@ -25,12 +27,14 @@ func NewTicketUsecase(
 	ticketRepo model.ITicketRepository,
 	historyRepo model.ITicketHistoryRepository,
 	projectRepo model.IProjectRepository,
+	hub *ws.Hub,
 ) model.ITicketUsecase {
 	return &TicketUsecase{
 		db:                db,
 		ticketRepo:        ticketRepo,
 		ticketHistoryRepo: historyRepo,
 		projectRepo:       projectRepo,
+		hub:               hub,
 	}
 }
 
@@ -142,7 +146,12 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		logrus.Error("failed insert CREATED history:", err)
 	}
 
-	data, _ := json.Marshal(ticket)
+	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, ticket.ID)
+	if err != nil {
+		return nil, false, err
+	}
+
+	data, _ := json.Marshal(ticketResp)
 	config.Rdb.LPush(config.Ctx(), "ticket_queue", data)
 
 	return &ticket, isAssigned, nil
@@ -230,6 +239,34 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 			log.Info("success insert ONHOLD_NOTE")
 		}
 	}
+
+	message := ws.Message{
+		Type: ws.EventTicketStatusUpdate,
+		Data: ticket,
+	}
+
+	payload, _ := json.Marshal(message)
+
+	go func() {
+		u.hub.BroadcastToRole <- ws.RoleMessage{
+			Role:    "STAFF",
+			Message: payload,
+		}
+	}()
+
+	go func() {
+		u.hub.BroadcastToRole <- ws.RoleMessage{
+			Role:    "ADMINISTRATOR",
+			Message: payload,
+		}
+	}()
+
+	go func() {
+		u.hub.BroadcastToRole <- ws.RoleMessage{
+			Role:    "USER",
+			Message: payload,
+		}
+	}()
 
 	return nil
 }

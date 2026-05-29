@@ -6,23 +6,29 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
+
+	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 )
 
 type TicketCommentUsecase struct {
 	repo              model.ITicketCommentRepository
 	ticketHistoryRepo model.ITicketHistoryRepository
 	ticketRepo        model.ITicketRepository
+	wsHub             *ws.Hub
 }
 
 func NewTicketCommentUsecase(
 	repo model.ITicketCommentRepository,
 	ticketHistoryRepo model.ITicketHistoryRepository,
 	ticketRepo model.ITicketRepository,
+	wsHub *ws.Hub,
 ) model.ITicketCommentUsecase {
 	return &TicketCommentUsecase{
 		repo:              repo,
 		ticketHistoryRepo: ticketHistoryRepo,
 		ticketRepo:        ticketRepo,
+		wsHub:             wsHub,
 	}
 }
 
@@ -52,6 +58,20 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 		log.Error("Failed to create ticket comment: ", err)
 		return nil, err
 	}
+
+	ws.BroadcastToRoles(
+		u.wsHub,
+		[]string{"administrator", "staff", "user"},
+		websocket.Message{
+			Type: "NEW_COMMENT",
+			Data: map[string]interface{}{
+				"id":         result.ID,
+				"ticket_id":  result.TicketID,
+				"user_name":  comment.UserID,
+				"message":    result.Message,
+				"created_at": result.CreatedAt,
+			},
+		})
 
 	message := comment.Message
 

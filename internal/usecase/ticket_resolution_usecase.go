@@ -8,6 +8,8 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
+	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 	"gorm.io/gorm"
 )
 
@@ -16,6 +18,7 @@ type TicketResolutionUsecase struct {
 	resolutionRepo model.ITicketResolutionRepository
 	historyRepo    model.ITicketHistoryRepository
 	ticketRepo     model.ITicketRepository
+	wsHub          *ws.Hub
 }
 
 func NewTicketResolutionUsecase(
@@ -23,12 +26,14 @@ func NewTicketResolutionUsecase(
 	resolutionRepo model.ITicketResolutionRepository,
 	historyRepo model.ITicketHistoryRepository,
 	ticketRepo model.ITicketRepository,
+	wsHub *ws.Hub,
 ) model.ITicketResolutionUsecase {
 	return &TicketResolutionUsecase{
 		db:             db,
 		resolutionRepo: resolutionRepo,
 		historyRepo:    historyRepo,
 		ticketRepo:     ticketRepo,
+		wsHub:          wsHub,
 	}
 }
 
@@ -118,6 +123,31 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 			Message:       "Ticket " + ticket.TicketCode + " resolved",
 		},
 	)
+
+	ws.BroadcastToRoles(
+		u.wsHub,
+		[]string{"administrator", "staff", "user"},
+		websocket.Message{
+			Type: "TICKET_STATUS_UPDATED",
+			Data: map[string]interface{}{
+				"id":     ticket.ID,
+				"status": model.StatusResolved,
+			},
+		})
+
+	ws.BroadcastToRoles(
+		u.wsHub,
+		[]string{"administrator", "staff", "user"},
+		websocket.Message{
+			Type: "TICKET_HISTORY",
+			Data: map[string]interface{}{
+				"ticket_id":  ticket.ID,
+				"type":       "STATUS_UPDATED",
+				"old_value":  oldStatusStr,
+				"new_value":  newStatusStr,
+				"created_at": time.Now(),
+			},
+		})
 
 	return createdResolution, nil
 }
