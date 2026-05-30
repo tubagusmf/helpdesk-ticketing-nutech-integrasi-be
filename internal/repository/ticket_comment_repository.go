@@ -16,9 +16,17 @@ func NewTicketCommentRepo(db *gorm.DB) model.ITicketCommentRepository {
 }
 
 func (r *TicketCommentRepo) Create(ctx context.Context, comment model.TicketComment) (*model.TicketComment, error) {
-	if err := r.db.WithContext(ctx).Create(&comment).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Create(&comment).Error; err != nil {
 		return nil, err
 	}
+
+	if err := r.db.WithContext(ctx).
+		Preload("User").
+		First(&comment, comment.ID).Error; err != nil {
+		return nil, err
+	}
+
 	return &comment, nil
 }
 

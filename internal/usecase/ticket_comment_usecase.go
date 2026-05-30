@@ -18,12 +18,7 @@ type TicketCommentUsecase struct {
 	wsHub             *ws.Hub
 }
 
-func NewTicketCommentUsecase(
-	repo model.ITicketCommentRepository,
-	ticketHistoryRepo model.ITicketHistoryRepository,
-	ticketRepo model.ITicketRepository,
-	wsHub *ws.Hub,
-) model.ITicketCommentUsecase {
+func NewTicketCommentUsecase(repo model.ITicketCommentRepository, ticketHistoryRepo model.ITicketHistoryRepository, ticketRepo model.ITicketRepository, wsHub *ws.Hub) model.ITicketCommentUsecase {
 	return &TicketCommentUsecase{
 		repo:              repo,
 		ticketHistoryRepo: ticketHistoryRepo,
@@ -61,13 +56,13 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 
 	ws.BroadcastToRoles(
 		u.wsHub,
-		[]string{"administrator", "staff", "user"},
+		[]string{"ADMINISTRATOR", "STAFF", "USER"},
 		websocket.Message{
 			Type: "NEW_COMMENT",
 			Data: map[string]interface{}{
 				"id":         result.ID,
 				"ticket_id":  result.TicketID,
-				"user_name":  comment.UserID,
+				"user_name":  result.User.Name,
 				"message":    result.Message,
 				"created_at": result.CreatedAt,
 			},

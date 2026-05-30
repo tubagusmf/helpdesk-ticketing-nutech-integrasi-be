@@ -9,6 +9,7 @@ type TicketComment struct {
 	ID                    int64     `json:"id"`
 	TicketID              int64     `json:"ticket_id"`
 	UserID                int64     `json:"user_id"`
+	User                  User      `json:"user"`
 	Message               string    `json:"message"`
 	IsReadByUser          bool      `json:"is_read_by_user"`
 	IsReadByStaff         bool      `json:"is_read_by_staff"`
