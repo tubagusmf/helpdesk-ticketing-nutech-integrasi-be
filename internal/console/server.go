@@ -96,7 +96,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	causeUsecase := usecase.NewCauseUsecase(causeRepo)
 	solutionUsecase := usecase.NewSolutionUsecase(solutionRepo)
 	ticketUsecase := usecase.NewTicketUsecase(postgresDB, ticketRepo, ticketHistoryRepo, projectRepo, hub)
-	ticketHistoryUsecase := usecase.NewTicketHistoryUsecase(ticketHistoryRepo)
+	ticketHistoryUsecase := usecase.NewTicketHistoryUsecase(ticketHistoryRepo, hub)
 	ticketCommentUsecase := usecase.NewTicketCommentUsecase(ticketComment, ticketHistoryRepo, ticketRepo, hub)
 	ticketResolutionUsecase := usecase.NewTicketResolutionUsecase(postgresDB, ticketResolution, ticketHistoryRepo, ticketRepo, hub)
 	dashboardUsecase := usecase.NewDashboardUsecase(dashboardRepo)

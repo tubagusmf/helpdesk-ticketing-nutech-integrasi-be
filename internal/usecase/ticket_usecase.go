@@ -125,11 +125,33 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		return nil, false, err
 	}
 
-	_, err = u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
-		TicketID: ticket.ID,
-		UserID:   reporterID,
-		Action:   "CREATED",
-	})
+	history, err := u.ticketHistoryRepo.Create(
+		ctx,
+		model.TicketHistory{
+			TicketID: ticket.ID,
+			UserID:   reporterID,
+			Action:   "CREATED",
+		},
+	)
+
+	if err == nil {
+		histories, err := u.ticketHistoryRepo.FindByTicketID(
+			ctx,
+			history.TicketID,
+		)
+
+		if err == nil && len(histories) > 0 {
+
+			latest := histories[0]
+
+			latest.Type = "CREATED"
+
+			BroadcastTicketHistory(
+				u.hub,
+				latest,
+			)
+		}
+	}
 
 	if ticket.AssignedToID != nil {
 		logrus.Infof(
@@ -209,7 +231,7 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 	oldStatusStr := string(oldStatus)
 	newStatusStr := string(in.Status)
 
-	_, err = u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
+	history, err := u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
 		TicketID:  id,
 		UserID:    userID,
 		Action:    "STATUS_UPDATED",
@@ -217,6 +239,41 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 		OldValue:  &oldStatusStr,
 		NewValue:  &newStatusStr,
 	})
+
+	if err == nil {
+		histories, err := u.ticketHistoryRepo.FindByTicketID(
+			ctx,
+			history.TicketID,
+		)
+
+		if err == nil && len(histories) > 0 {
+
+			for _, h := range histories {
+				logrus.Infof(
+					"[WS HISTORY] status history id=%d old=%v new=%v",
+					h.ID,
+					h.OldValue,
+					h.NewValue,
+				)
+			}
+
+			latest := histories[0]
+
+			latest.Type = "STATUS_UPDATED"
+
+			payload, _ := json.Marshal(latest)
+
+			logrus.Infof(
+				"[STATUS HISTORY PAYLOAD] %s",
+				string(payload),
+			)
+
+			BroadcastTicketHistory(
+				u.hub,
+				latest,
+			)
+		}
+	}
 
 	if err != nil {
 		log.Error("failed insert STATUS history:", err)
@@ -226,12 +283,33 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 	if in.Status == model.StatusOnHold && in.OnholdNotes != "" {
 		notes := in.OnholdNotes
 
-		_, err := u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
+		history, err := u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
 			TicketID: id,
 			UserID:   userID,
 			Action:   "ONHOLD_NOTE",
 			NewValue: &notes,
 		})
+
+		if err == nil {
+
+			histories, err := u.ticketHistoryRepo.FindByTicketID(
+				ctx,
+				history.TicketID,
+			)
+
+			if err == nil && len(histories) > 0 {
+
+				latest := histories[0]
+
+				latest.Type = "ONHOLD_NOTE"
+				latest.Message = latest.NewValue
+
+				BroadcastTicketHistory(
+					u.hub,
+					latest,
+				)
+			}
+		}
 
 		if err != nil {
 			log.Error("failed insert ONHOLD_NOTE:", err)

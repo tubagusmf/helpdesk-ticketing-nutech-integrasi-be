@@ -126,7 +126,7 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 
 	ws.BroadcastToRoles(
 		u.wsHub,
-		[]string{"administrator", "staff", "user"},
+		[]string{"ADMINISTRATOR", "STAFF", "USER"},
 		websocket.Message{
 			Type: "TICKET_STATUS_UPDATED",
 			Data: map[string]interface{}{
@@ -137,7 +137,7 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 
 	ws.BroadcastToRoles(
 		u.wsHub,
-		[]string{"administrator", "staff", "user"},
+		[]string{"ADMINISTRATOR", "STAFF", "USER"},
 		websocket.Message{
 			Type: "TICKET_HISTORY",
 			Data: map[string]interface{}{

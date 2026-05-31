@@ -2,18 +2,22 @@ package usecase
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
+	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 )
 
 type TicketHistoryUsecase struct {
 	repo model.ITicketHistoryRepository
+	hub  *ws.Hub
 }
 
-func NewTicketHistoryUsecase(repo model.ITicketHistoryRepository) model.ITicketHistoryUsecase {
+func NewTicketHistoryUsecase(repo model.ITicketHistoryRepository, hub *ws.Hub) model.ITicketHistoryUsecase {
 	return &TicketHistoryUsecase{
 		repo: repo,
+		hub:  hub,
 	}
 }
 
@@ -46,6 +50,30 @@ func (u *TicketHistoryUsecase) FindByTicketID(ctx context.Context, ticketID int6
 	return result, nil
 }
 
+func (u *TicketHistoryUsecase) BroadcastLatestHistory(ctx context.Context, ticketID int64) {
+	histories, err := u.FindByTicketID(ctx, ticketID)
+
+	if err != nil {
+		logrus.Error(err)
+		return
+	}
+
+	if len(histories) == 0 {
+		return
+	}
+
+	BroadcastTicketHistory(
+		u.hub,
+		histories[0],
+	)
+
+	logrus.Infof(
+		"[BROADCAST HISTORY] ticket=%d history=%d",
+		ticketID,
+		histories[0].ID,
+	)
+}
+
 func mapAction(action, field string) string {
 	switch action {
 
@@ -66,4 +94,32 @@ func mapAction(action, field string) string {
 	}
 
 	return "OTHER"
+}
+
+func BroadcastTicketHistory(hub *ws.Hub, history interface{}) {
+	logrus.Infof(
+		"[WS SEND HISTORY] %+v",
+		history,
+	)
+
+	msg := ws.Message{
+		Type: "TICKET_HISTORY",
+		Data: history,
+	}
+
+	payload, _ := json.Marshal(msg)
+
+	roles := []string{
+		"ADMINISTRATOR",
+		"STAFF",
+		"USER",
+	}
+
+	for _, role := range roles {
+
+		hub.BroadcastToRole <- ws.RoleMessage{
+			Role:    role,
+			Message: payload,
+		}
+	}
 }

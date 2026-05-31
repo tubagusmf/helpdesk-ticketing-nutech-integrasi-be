@@ -70,16 +70,31 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 
 	message := comment.Message
 
-	_, err = u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
+	history, err := u.ticketHistoryRepo.Create(ctx, model.TicketHistory{
 		TicketID: comment.TicketID,
 		UserID:   comment.UserID,
 		Action:   "COMMENT",
 		NewValue: &message,
 	})
-	if err != nil {
-		log.Error("FAILED insert history COMMENT: ", err)
-	} else {
-		log.Info("SUCCESS insert history COMMENT")
+
+	if err == nil {
+		histories, err := u.ticketHistoryRepo.FindByTicketID(
+			ctx,
+			history.TicketID,
+		)
+
+		if err == nil && len(histories) > 0 {
+
+			latest := histories[0]
+
+			latest.Type = "COMMENT"
+			latest.Message = latest.NewValue
+
+			BroadcastTicketHistory(
+				u.wsHub,
+				latest,
+			)
+		}
 	}
 
 	var receiverID int64
