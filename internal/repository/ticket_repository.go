@@ -106,6 +106,16 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		query = query.Where("DATE(tickets.created_at) <= ?", endDate)
 	}
 
+	switch role {
+	case "STAFF":
+		query = query.Where("tickets.assigned_to_id = ?", userID)
+
+	case "USER":
+		query = query.Where("tickets.reporter_id = ?", userID)
+
+	case "ADMINISTRATOR":
+	}
+
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
