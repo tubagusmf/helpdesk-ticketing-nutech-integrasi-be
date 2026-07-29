@@ -204,3 +204,32 @@ func (u *UserUsecase) UpdateOnlineStatus(ctx context.Context, userID int64, isOn
 func (u *UserUsecase) UpdateLastSeen(ctx context.Context, userID int64) error {
 	return u.userRepo.UpdateLastSeen(ctx, userID)
 }
+
+func (u *UserUsecase) UpdateProfile(ctx context.Context, userID int64, in model.UpdateProfileInput) error {
+	user, err := u.userRepo.FindByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	user.Name = in.Name
+
+	if in.NewPassword != "" {
+
+		if in.CurrentPassword == "" {
+			return errors.New("current password is required")
+		}
+
+		if !helper.CheckPasswordHash(in.CurrentPassword, user.Password) {
+			return errors.New("current password is incorrect")
+		}
+
+		hashed, err := helper.HashRequestPassword(in.NewPassword)
+		if err != nil {
+			return err
+		}
+
+		user.Password = hashed
+	}
+
+	return u.userRepo.Update(ctx, *user)
+}

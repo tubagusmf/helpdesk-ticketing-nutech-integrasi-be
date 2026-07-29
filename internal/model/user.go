@@ -58,6 +58,7 @@ type IUserUsecase interface {
 	Delete(ctx context.Context, id int64) error
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
 	UpdateLastSeen(ctx context.Context, userID int64) error
+	UpdateProfile(ctx context.Context, userID int64, in UpdateProfileInput) error
 }
 
 type LoginInput struct {
@@ -84,4 +85,10 @@ type UpdateUserInput struct {
 	Password string           `json:"password" validate:"omitempty,min=3,max=50"`
 	RoleID   int64            `json:"role_id" validate:"required"`
 	Projects []ProjectPayload `json:"projects"`
+}
+
+type UpdateProfileInput struct {
+	Name            string `json:"name" validate:"required"`
+	CurrentPassword string `json:"current_password"`
+	NewPassword     string `json:"new_password"`
 }

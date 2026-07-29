@@ -31,6 +31,8 @@ func NewUserHandler(e *echo.Echo, userUsecase model.IUserUsecase) {
 	group.PUT("/force-offline/:id", handler.ForceOffline, AuthMiddleware)
 	group.PUT("/heartbeat", handler.Heartbeat, AuthMiddleware)
 	group.PUT("/logout", handler.Logout)
+	group.GET("/profile", handler.Profile, AuthMiddleware)
+	group.PUT("/profile", handler.UpdateProfile, AuthMiddleware)
 }
 
 func (h *UserHandler) Login(c echo.Context) error {
@@ -262,4 +264,47 @@ func (h *UserHandler) Logout(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusOK)
+}
+
+func (h *UserHandler) Profile(c echo.Context) error {
+	claim := c.Request().Context().
+		Value(model.BearerAuthKey).(*model.CustomClaims)
+
+	user, err := h.userUsecase.FindByID(
+		c.Request().Context(),
+		claim.UserID,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"data": user,
+	})
+}
+
+func (h *UserHandler) UpdateProfile(c echo.Context) error {
+	claim := c.Request().Context().
+		Value(model.BearerAuthKey).(*model.CustomClaims)
+
+	var body model.UpdateProfileInput
+
+	if err := c.Bind(&body); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	err := h.userUsecase.UpdateProfile(
+		c.Request().Context(),
+		claim.UserID,
+		body,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, err.Error())
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "profile updated successfully",
+	})
 }
