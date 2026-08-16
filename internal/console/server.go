@@ -59,8 +59,6 @@ func httpServer(cmd *cobra.Command, args []string) {
 		log.Fatalf("Cloudinary init failed: %v", err)
 	}
 
-	config.LoadWithViper()
-
 	postgresDB := db.NewPostgres()
 	sqlDB, err := postgresDB.DB()
 	if err != nil {
@@ -137,9 +135,25 @@ func httpServer(cmd *cobra.Command, args []string) {
 	e.GET("/ws", wsHandler.Handle)
 
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"http://localhost:5173", "http://localhost:3001"},
-		AllowMethods: []string{echo.GET, echo.POST, echo.PUT, echo.DELETE},
-		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		AllowOrigins: []string{
+			"http://localhost:5173",
+			"http://localhost:3001",
+		},
+		AllowMethods: []string{
+			echo.GET,
+			echo.POST,
+			echo.PUT,
+			echo.DELETE,
+		},
+		AllowHeaders: []string{
+			echo.HeaderOrigin,
+			echo.HeaderContentType,
+			echo.HeaderAccept,
+			echo.HeaderAuthorization,
+		},
+		ExposeHeaders: []string{
+			echo.HeaderContentDisposition,
+		},
 	}))
 
 	var wg sync.WaitGroup
