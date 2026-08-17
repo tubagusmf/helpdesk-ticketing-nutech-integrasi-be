@@ -61,6 +61,7 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		Joins("LEFT JOIN asset_ids ON asset_ids.id = tickets.asset_id").
 		Joins("LEFT JOIN users as reporter ON reporter.id = tickets.reporter_id").
 		Joins("LEFT JOIN users as assigned ON assigned.id = tickets.assigned_to_id").
+		Joins("LEFT JOIN ticket_resolutions ON ticket_resolutions.ticket_id = tickets.id").
 		Where("tickets.deleted_at IS NULL")
 
 	if search != "" {
@@ -179,6 +180,7 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 			tickets.asset_id,
 			tickets.attachment,
 			tickets.assigned_to_id,
+			ticket_resolutions.attachment_url AS solution_attachment,
 
 			projects.name as project_name,
 			locations.name as location_name,

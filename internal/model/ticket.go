@@ -53,6 +53,7 @@ type TicketResponse struct {
 	Status             string    `json:"status"`
 	Description        string    `json:"description"`
 	Attachment         *string   `json:"attachment_url"`
+	SolutionAttachment *string   `json:"solution_attachment_url"`
 	ProjectName        string    `json:"project_name"`
 	LocationName       string    `json:"location_name"`
 	AssetCode          string    `json:"asset_code"`
