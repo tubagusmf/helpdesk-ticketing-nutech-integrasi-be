@@ -176,6 +176,18 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 	data, _ := json.Marshal(ticketResp)
 	config.Rdb.LPush(config.Ctx(), "ticket_queue", data)
 
+	ws.BroadcastToRoles(
+		u.hub,
+		[]string{
+			"STAFF",
+			"ADMINISTRATOR",
+		},
+		ws.Message{
+			Type: ws.EventTicketUpdated,
+			Data: ticketResp,
+		},
+	)
+
 	return &ticket, isAssigned, nil
 }
 

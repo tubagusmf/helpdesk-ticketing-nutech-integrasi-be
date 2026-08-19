@@ -36,6 +36,10 @@ func (h *Hub) Run() {
 		select {
 
 		case client := <-h.Register:
+			logrus.Infof(
+				"[WS REGISTER] role=%s",
+				client.Role,
+			)
 
 			if _, ok := h.Clients[client.Role]; !ok {
 				h.Clients[client.Role] = make(map[*Client]bool)
@@ -56,6 +60,11 @@ func (h *Hub) Run() {
 			}
 
 		case msg := <-h.BroadcastToRole:
+			logrus.Infof(
+				"[WS BROADCAST ROLE] role=%s clients=%d",
+				msg.Role,
+				len(h.Clients[msg.Role]),
+			)
 
 			if clients, ok := h.Clients[msg.Role]; ok {
 
