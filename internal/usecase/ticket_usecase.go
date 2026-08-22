@@ -330,33 +330,24 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 		}
 	}
 
-	message := ws.Message{
-		Type: ws.EventTicketStatusUpdate,
-		Data: ticket,
+	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, id)
+	if err != nil {
+		log.Error("failed fetch updated ticket response:", err)
+		return err
 	}
 
-	payload, _ := json.Marshal(message)
-
-	go func() {
-		u.hub.BroadcastToRole <- ws.RoleMessage{
-			Role:    "STAFF",
-			Message: payload,
-		}
-	}()
-
-	go func() {
-		u.hub.BroadcastToRole <- ws.RoleMessage{
-			Role:    "ADMINISTRATOR",
-			Message: payload,
-		}
-	}()
-
-	go func() {
-		u.hub.BroadcastToRole <- ws.RoleMessage{
-			Role:    "USER",
-			Message: payload,
-		}
-	}()
+	ws.BroadcastToRoles(
+		u.hub,
+		[]string{
+			"STAFF",
+			"ADMINISTRATOR",
+			"USER",
+		},
+		ws.Message{
+			Type: ws.EventTicketStatusUpdate,
+			Data: ticketResp,
+		},
+	)
 
 	return nil
 }

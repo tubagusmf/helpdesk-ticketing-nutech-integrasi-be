@@ -124,16 +124,23 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		},
 	)
 
+	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, ticket.ID)
+	if err != nil {
+		return nil, err
+	}
+
 	ws.BroadcastToRoles(
 		u.wsHub,
-		[]string{"ADMINISTRATOR", "STAFF", "USER"},
-		websocket.Message{
-			Type: "TICKET_STATUS_UPDATED",
-			Data: map[string]interface{}{
-				"id":     ticket.ID,
-				"status": model.StatusResolved,
-			},
-		})
+		[]string{
+			"ADMINISTRATOR",
+			"STAFF",
+			"USER",
+		},
+		ws.Message{
+			Type: ws.EventTicketStatusUpdate,
+			Data: ticketResp,
+		},
+	)
 
 	ws.BroadcastToRoles(
 		u.wsHub,
@@ -205,6 +212,25 @@ func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
+
+	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, ticketID)
+	if err != nil {
+		log.Error("failed fetch updated ticket response:", err)
+		return err
+	}
+
+	ws.BroadcastToRoles(
+		u.wsHub,
+		[]string{
+			"ADMINISTRATOR",
+			"STAFF",
+			"USER",
+		},
+		ws.Message{
+			Type: ws.EventTicketStatusUpdate,
+			Data: ticketResp,
+		},
+	)
 
 	return nil
 }
