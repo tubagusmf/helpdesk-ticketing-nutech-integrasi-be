@@ -22,6 +22,7 @@ func NewLocationHandler(e *echo.Echo, locationUsecase model.ILocationUsecase) {
 	group.POST("/create", handler.Create, AuthMiddleware)
 	group.GET("", handler.FindAll, AuthMiddleware)
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
+	group.GET("/project/:project_id", handler.FindByProjectID, AuthMiddleware)
 	group.PUT("/update/:id", handler.Update, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 }
@@ -99,6 +100,32 @@ func (h *LocationHandler) FindByID(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "location fetched successfully",
 		"data":    location,
+	})
+}
+
+func (h *LocationHandler) FindByProjectID(c echo.Context) error {
+	projectID, err := strconv.ParseInt(c.Param("project_id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid project_id",
+		)
+	}
+
+	locations, err := h.locationUsecase.FindByProjectID(
+		c.Request().Context(),
+		projectID,
+	)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "locations fetched successfully",
+		"data":    locations,
 	})
 }
 

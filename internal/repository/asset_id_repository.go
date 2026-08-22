@@ -86,6 +86,22 @@ func (r *AssetIDRepo) FindAll(ctx context.Context, filter model.AssetID, page in
 	return assets, total, nil
 }
 
+func (r *AssetIDRepo) FindByPartID(ctx context.Context, partID int64) ([]*model.AssetID, error) {
+	var assets []*model.AssetID
+
+	err := r.db.WithContext(ctx).
+		Where("part_id = ?", partID).
+		Where("deleted_at IS NULL").
+		Order("name ASC").
+		Find(&assets).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return assets, nil
+}
+
 func (r *AssetIDRepo) Update(ctx context.Context, asset model.AssetID) error {
 	asset.UpdatedAt = time.Now()
 

@@ -28,6 +28,7 @@ type UpdateAssetIDInput struct {
 type IAssetIDRepository interface {
 	FindAll(ctx context.Context, assetId AssetID, page int, limit int) ([]*AssetID, int64, error)
 	FindByID(ctx context.Context, id int64) (*AssetID, error)
+	FindByPartID(ctx context.Context, partID int64) ([]*AssetID, error)
 	Create(ctx context.Context, asset AssetID) (*AssetID, error)
 	Update(ctx context.Context, asset AssetID) error
 	Delete(ctx context.Context, id int64) error
@@ -36,6 +37,7 @@ type IAssetIDRepository interface {
 type IAssetIDUsecase interface {
 	FindAll(ctx context.Context, assetId AssetID, page int, limit int) ([]*AssetID, int64, error)
 	FindByID(ctx context.Context, id int64) (*AssetID, error)
+	FindByPartID(ctx context.Context, partID int64) ([]*AssetID, error)
 	Create(ctx context.Context, in AssetIDInput) (*AssetID, error)
 	Update(ctx context.Context, id int64, in UpdateAssetIDInput) error
 	Delete(ctx context.Context, id int64) error

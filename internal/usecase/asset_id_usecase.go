@@ -62,6 +62,20 @@ func (u *AssetIDUsecase) FindByID(ctx context.Context, id int64) (*model.AssetID
 	return asset, nil
 }
 
+func (u *AssetIDUsecase) FindByPartID(ctx context.Context, partID int64) ([]*model.AssetID, error) {
+	log := logrus.WithFields(logrus.Fields{
+		"partID": partID,
+	})
+
+	assets, err := u.assetRepo.FindByPartID(ctx, partID)
+	if err != nil {
+		log.Error("Failed to find asset_ids: ", err)
+		return nil, err
+	}
+
+	return assets, nil
+}
+
 func (u *AssetIDUsecase) Update(ctx context.Context, id int64, in model.UpdateAssetIDInput) error {
 	log := logrus.WithFields(logrus.Fields{"id": id})
 

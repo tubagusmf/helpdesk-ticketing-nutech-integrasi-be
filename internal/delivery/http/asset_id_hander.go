@@ -22,6 +22,7 @@ func NewAssetIDHandler(e *echo.Echo, assetUsecase model.IAssetIDUsecase) {
 	group.POST("/create", handler.Create, AuthMiddleware)
 	group.GET("", handler.FindAll, AuthMiddleware)
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
+	group.GET("/part/:part_id", handler.FindByPartID, AuthMiddleware)
 	group.PUT("/update/:id", handler.Update, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 }
@@ -94,6 +95,32 @@ func (h *AssetIDHandler) FindByID(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "asset_id fetched successfully",
 		"data":    asset,
+	})
+}
+
+func (h *AssetIDHandler) FindByPartID(c echo.Context) error {
+	partID, err := strconv.ParseInt(c.Param("part_id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid part_id",
+		)
+	}
+
+	assets, err := h.assetUsecase.FindByPartID(
+		c.Request().Context(),
+		partID,
+	)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "asset_ids fetched successfully",
+		"data":    assets,
 	})
 }
 

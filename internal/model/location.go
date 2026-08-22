@@ -28,6 +28,7 @@ type UpdateLocationInput struct {
 type ILocationRepository interface {
 	FindAll(ctx context.Context, location Location, page int, limit int) ([]*Location, int64, error)
 	FindByID(ctx context.Context, id int64) (*Location, error)
+	FindByProjectID(ctx context.Context, projectID int64) ([]*Location, error)
 	Create(ctx context.Context, location Location) (*Location, error)
 	Update(ctx context.Context, location Location) error
 	Delete(ctx context.Context, id int64) error
@@ -36,6 +37,7 @@ type ILocationRepository interface {
 type ILocationUsecase interface {
 	FindAll(ctx context.Context, location Location, page int, limit int) ([]*Location, int64, error)
 	FindByID(ctx context.Context, id int64) (*Location, error)
+	FindByProjectID(ctx context.Context, projectID int64) ([]*Location, error)
 	Create(ctx context.Context, in LocationInput) (*Location, error)
 	Update(ctx context.Context, id int64, in UpdateLocationInput) error
 	Delete(ctx context.Context, id int64) error

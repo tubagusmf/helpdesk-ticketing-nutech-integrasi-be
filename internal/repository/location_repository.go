@@ -103,3 +103,19 @@ func (r *LocationRepo) Delete(ctx context.Context, id int64) error {
 		Where("id = ? AND deleted_at IS NULL", id).
 		Update("deleted_at", time.Now()).Error
 }
+
+func (r *LocationRepo) FindByProjectID(ctx context.Context, projectID int64) ([]*model.Location, error) {
+	var locations []*model.Location
+
+	err := r.db.WithContext(ctx).
+		Where("project_id = ?", projectID).
+		Where("deleted_at IS NULL").
+		Order("name ASC").
+		Find(&locations).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return locations, nil
+}

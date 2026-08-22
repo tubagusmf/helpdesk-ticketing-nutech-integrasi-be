@@ -70,6 +70,20 @@ func (u *LocationUsecase) FindByID(ctx context.Context, id int64) (*model.Locati
 	return location, nil
 }
 
+func (u *LocationUsecase) FindByProjectID(ctx context.Context, projectID int64) ([]*model.Location, error) {
+	log := logrus.WithFields(logrus.Fields{
+		"projectID": projectID,
+	})
+
+	locations, err := u.locationRepo.FindByProjectID(ctx, projectID)
+	if err != nil {
+		log.Error("Failed to find locations: ", err)
+		return nil, err
+	}
+
+	return locations, nil
+}
+
 func (u *LocationUsecase) Update(ctx context.Context, id int64, in model.UpdateLocationInput) error {
 	log := logrus.WithFields(logrus.Fields{
 		"id": id,
