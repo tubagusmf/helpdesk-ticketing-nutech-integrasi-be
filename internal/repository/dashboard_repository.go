@@ -16,16 +16,17 @@ func NewDashboardRepo(db *gorm.DB) model.IDashboardRepository {
 	return &DashboardRepo{db: db}
 }
 
-func (r *DashboardRepo) baseQuery(ctx context.Context, filter map[string]interface{}) *gorm.DB {
-	return applyFilter(
-		r.db.WithContext(ctx).
-			Model(&model.Ticket{}).
-			Where("deleted_at IS NULL"),
-		filter,
-	)
+func (r *DashboardRepo) baseQuery(ctx context.Context, filter model.DashboardFilter) *gorm.DB {
+	db := r.db.WithContext(ctx).
+		Model(&model.Ticket{}).
+		Where("tickets.deleted_at IS NULL")
+
+	db = applyFilter(db, filter)
+
+	return db
 }
 
-func (r *DashboardRepo) GetSummary(ctx context.Context, filter map[string]interface{}) (*model.DashboardSummary, error) {
+func (r *DashboardRepo) GetSummary(ctx context.Context, filter model.DashboardFilter) (*model.DashboardSummary, error) {
 	var result model.DashboardSummary
 
 	base := r.baseQuery(ctx, filter)
@@ -55,7 +56,7 @@ func (r *DashboardRepo) GetSummary(ctx context.Context, filter map[string]interf
 	return &result, nil
 }
 
-func (r *DashboardRepo) GetStatusDistribution(ctx context.Context, filter map[string]interface{}) (*model.StatusDistribution, error) {
+func (r *DashboardRepo) GetStatusDistribution(ctx context.Context, filter model.DashboardFilter) (*model.StatusDistribution, error) {
 	result := &model.StatusDistribution{}
 
 	base := r.baseQuery(ctx, filter)
@@ -83,7 +84,7 @@ func (r *DashboardRepo) GetStatusDistribution(ctx context.Context, filter map[st
 	return result, nil
 }
 
-func (r *DashboardRepo) GetPriorityDistribution(ctx context.Context, filter map[string]interface{}) ([]model.PriorityDistribution, error) {
+func (r *DashboardRepo) GetPriorityDistribution(ctx context.Context, filter model.DashboardFilter) ([]model.PriorityDistribution, error) {
 	var result []model.PriorityDistribution
 
 	err := r.baseQuery(ctx, filter).
@@ -103,7 +104,7 @@ func (r *DashboardRepo) GetPriorityDistribution(ctx context.Context, filter map[
 	return result, nil
 }
 
-func (r *DashboardRepo) GetVolumeProject(ctx context.Context, filter map[string]interface{}) ([]model.VolumeProject, error) {
+func (r *DashboardRepo) GetVolumeProject(ctx context.Context, filter model.DashboardFilter) ([]model.VolumeProject, error) {
 	var result []model.VolumeProject
 
 	db := r.db.WithContext(ctx).
@@ -115,8 +116,12 @@ func (r *DashboardRepo) GetVolumeProject(ctx context.Context, filter map[string]
 
 	err := db.
 		Session(&gorm.Session{}).
-		Select("projects.name as project, COUNT(tickets.id) as total").
-		Group("projects.name").
+		Select(`
+			projects.name AS project,
+			COUNT(tickets.id) AS total
+		`).
+		Group("projects.id, projects.name").
+		Order("projects.name ASC").
 		Scan(&result).Error
 
 	if err != nil {
@@ -130,36 +135,64 @@ func (r *DashboardRepo) GetVolumeProject(ctx context.Context, filter map[string]
 	return result, nil
 }
 
-func applyFilter(db *gorm.DB, filter map[string]interface{}) *gorm.DB {
-	if v, ok := filter["project_id"]; ok && v != "" {
-		db = db.Where("project_id = ?", v)
+func applyFilter(db *gorm.DB, filter model.DashboardFilter) *gorm.DB {
+	if filter.ProjectID != 0 {
+		db = db.Where("tickets.project_id = ?", filter.ProjectID)
 	}
 
-	if v, ok := filter["part_id"]; ok && v != "" {
-		db = db.Where("part_id = ?", v)
+	if filter.PartID != 0 {
+		db = db.Where("tickets.part_id = ?", filter.PartID)
 	}
 
-	if v, ok := filter["start_date"]; ok && v != "" {
-		db = db.Where("created_at >= ?", v)
+	if filter.StartDate != "" {
+		db = db.Where("tickets.created_at >= ?", filter.StartDate)
 	}
 
-	if v, ok := filter["end_date"]; ok && v != "" {
-		db = db.Where("created_at <= ?", v)
+	if filter.EndDate != "" {
+		db = db.Where(
+			"tickets.created_at < (?::date + INTERVAL '1 day')",
+			filter.EndDate,
+		)
 	}
 
-	if v, ok := filter["user_id"]; ok && v != "" {
+	// EXECUTIVE
+	if filter.Role == "EXECUTIVE" {
+		db = db.Where(`
+			EXISTS (
+				SELECT 1
+				FROM user_projects up
+				WHERE up.user_id = ?
+				AND up.project_id = tickets.project_id
+			)
+		`, filter.UserID)
 
-		role := ""
-		if r, ok := filter["role"]; ok {
-			role = r.(string)
-		}
-
-		if role == "staff" || role == "technician" {
-			db = db.Where("(reporter_id = ? OR assigned_to_id = ?)", v, v)
-		} else {
-			db = db.Where("reporter_id = ?", v)
-		}
+		return db
 	}
 
+	// STAFF
+	if filter.Role == "STAFF" {
+		db = db.Where(`
+			EXISTS (
+				SELECT 1
+				FROM user_projects up
+				WHERE up.user_id = ?
+				AND up.project_id = tickets.project_id
+			)
+		`, filter.UserID)
+
+		return db
+	}
+
+	// USER
+	if filter.Role == "USER" {
+		db = db.Where(
+			"tickets.reporter_id = ?",
+			filter.UserID,
+		)
+
+		return db
+	}
+
+	// ADMINISTRATOR
 	return db
 }

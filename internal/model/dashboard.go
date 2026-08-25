@@ -1,6 +1,8 @@
 package model
 
-import "context"
+import (
+	"context"
+)
 
 type DashboardSummary struct {
 	TotalTicket       int64   `json:"total_ticket"`
@@ -8,6 +10,15 @@ type DashboardSummary struct {
 	TicketSelesai     int64   `json:"ticket_selesai"`
 	TicketOnHold      int64   `json:"ticket_onhold"`
 	AvgResolutionTime float64 `json:"avg_resolution_time"`
+}
+
+type DashboardFilter struct {
+	ProjectID int64  `json:"project_id"`
+	PartID    int64  `json:"part_id"`
+	StartDate string `json:"start_date"`
+	EndDate   string `json:"end_date"`
+	UserID    int64  `json:"user_id"`
+	Role      string `json:"role"`
 }
 
 type StatusDistribution struct {
@@ -29,8 +40,8 @@ type VolumeProject struct {
 }
 
 type IDashboardRepository interface {
-	GetSummary(ctx context.Context, filter map[string]interface{}) (*DashboardSummary, error)
-	GetStatusDistribution(ctx context.Context, filter map[string]interface{}) (*StatusDistribution, error)
-	GetPriorityDistribution(ctx context.Context, filter map[string]interface{}) ([]PriorityDistribution, error)
-	GetVolumeProject(ctx context.Context, filter map[string]interface{}) ([]VolumeProject, error)
+	GetSummary(ctx context.Context, filter DashboardFilter) (*DashboardSummary, error)
+	GetStatusDistribution(ctx context.Context, filter DashboardFilter) (*StatusDistribution, error)
+	GetPriorityDistribution(ctx context.Context, filter DashboardFilter) ([]PriorityDistribution, error)
+	GetVolumeProject(ctx context.Context, filter DashboardFilter) ([]VolumeProject, error)
 }
