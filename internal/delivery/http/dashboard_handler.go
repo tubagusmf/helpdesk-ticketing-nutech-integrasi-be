@@ -30,6 +30,7 @@ func NewDashboardHandler(e *echo.Echo, u *usecase.DashboardUsecase) {
 	group.GET("/status-distribution", handler.GetStatus)
 	group.GET("/priority", handler.GetPriority)
 	group.GET("/volume-project", handler.GetVolume)
+	group.GET("/projects", handler.GetProjects)
 }
 
 func (h *DashboardHandler) buildFilter(c echo.Context) (model.DashboardFilter, error) {
@@ -140,6 +141,27 @@ func (h *DashboardHandler) GetVolume(c echo.Context) error {
 	}
 
 	data, err := h.usecase.GetVolume(
+		c.Request().Context(),
+		filter,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetProjects(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetProjects(
 		c.Request().Context(),
 		filter,
 	)

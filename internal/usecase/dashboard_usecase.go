@@ -29,3 +29,7 @@ func (u *DashboardUsecase) GetPriority(ctx context.Context, filter model.Dashboa
 func (u *DashboardUsecase) GetVolume(ctx context.Context, filter model.DashboardFilter) ([]model.VolumeProject, error) {
 	return u.repo.GetVolumeProject(ctx, filter)
 }
+
+func (u *DashboardUsecase) GetProjects(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardProject, error) {
+	return u.repo.GetProjects(ctx, filter)
+}

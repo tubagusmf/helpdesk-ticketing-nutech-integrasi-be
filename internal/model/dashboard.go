@@ -21,6 +21,11 @@ type DashboardFilter struct {
 	Role      string `json:"role"`
 }
 
+type DashboardProject struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
 type StatusDistribution struct {
 	Open       int64 `json:"open"`
 	InProgress int64 `json:"in_progress"`
@@ -44,4 +49,5 @@ type IDashboardRepository interface {
 	GetStatusDistribution(ctx context.Context, filter DashboardFilter) (*StatusDistribution, error)
 	GetPriorityDistribution(ctx context.Context, filter DashboardFilter) ([]PriorityDistribution, error)
 	GetVolumeProject(ctx context.Context, filter DashboardFilter) ([]VolumeProject, error)
+	GetProjects(ctx context.Context, filter DashboardFilter) ([]DashboardProject, error)
 }

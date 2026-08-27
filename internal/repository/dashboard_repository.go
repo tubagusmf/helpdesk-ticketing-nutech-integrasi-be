@@ -135,6 +135,63 @@ func (r *DashboardRepo) GetVolumeProject(ctx context.Context, filter model.Dashb
 	return result, nil
 }
 
+func (r *DashboardRepo) GetProjects(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardProject, error) {
+	var result []model.DashboardProject
+
+	db := r.db.WithContext(ctx).
+		Table("projects").
+		Select(`
+			projects.id,
+			projects.name
+		`).
+		Where("projects.deleted_at IS NULL")
+
+	switch filter.Role {
+
+	case "EXECUTIVE", "STAFF":
+
+		db = db.Where(`
+			EXISTS (
+				SELECT 1
+				FROM user_projects up
+				WHERE up.user_id = ?
+				AND up.project_id = projects.id
+			)
+		`, filter.UserID)
+
+	case "USER":
+
+		db = db.Where(`
+			EXISTS (
+				SELECT 1
+				FROM tickets
+				WHERE tickets.project_id = projects.id
+				AND tickets.reporter_id = ?
+				AND tickets.deleted_at IS NULL
+			)
+		`, filter.UserID)
+
+	case "ADMINISTRATOR":
+
+	default:
+		return []model.DashboardProject{}, nil
+	}
+
+	err := db.
+		Order("projects.name ASC").
+		Scan(&result).Error
+
+	if err != nil {
+		return []model.DashboardProject{}, err
+	}
+
+	if result == nil {
+		return []model.DashboardProject{}, nil
+	}
+
+	return result, nil
+}
+
 func applyFilter(db *gorm.DB, filter model.DashboardFilter) *gorm.DB {
 	if filter.ProjectID != 0 {
 		db = db.Where("tickets.project_id = ?", filter.ProjectID)
