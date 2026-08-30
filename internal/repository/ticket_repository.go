@@ -113,10 +113,32 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 
 	switch role {
 	case "STAFF":
-		query = query.Where("tickets.assigned_to_id = ?", userID)
+		query = query.Where(
+			"tickets.assigned_to_id = ?",
+			userID,
+		)
 
 	case "USER":
-		query = query.Where("tickets.reporter_id = ?", userID)
+		query = query.
+			Where("tickets.reporter_id = ?", userID).
+			Where(`
+			EXISTS (
+				SELECT 1
+				FROM user_projects up
+				WHERE up.user_id = ?
+				AND up.project_id = tickets.project_id
+			)
+		`, userID)
+
+	case "EXECUTIVE":
+		query = query.Where(`
+		EXISTS (
+			SELECT 1
+			FROM user_projects up
+			WHERE up.user_id = ?
+			AND up.project_id = tickets.project_id
+		)
+	`, userID)
 
 	case "ADMINISTRATOR":
 	}

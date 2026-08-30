@@ -56,17 +56,58 @@ func (h *ProjectHandler) FindAll(c echo.Context) error {
 
 	limit := 10
 
-	projects, total, err := h.projectUsecase.FindAll(
-		c.Request().Context(),
-		filter,
-		page,
-		limit,
-	)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	claimValue := c.Request().
+		Context().
+		Value(model.BearerAuthKey)
+
+	if claimValue == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
 	}
 
-	totalPage := int((total + int64(limit) - 1) / int64(limit))
+	claims := claimValue.(*model.CustomClaims)
+
+	var (
+		projects []*model.Project
+		total    int64
+		err      error
+	)
+
+	switch claims.Role {
+
+	case "USER", "EXECUTIVE":
+
+		projects, total, err = h.projectUsecase.FindAllByUser(
+			c.Request().Context(),
+			filter,
+			page,
+			limit,
+			claims.UserID,
+		)
+
+	default:
+
+		projects, total, err = h.projectUsecase.FindAll(
+			c.Request().Context(),
+			filter,
+			page,
+			limit,
+		)
+	}
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	totalPage := int(
+		(total + int64(limit) - 1) /
+			int64(limit),
+	)
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message":    "projects fetched successfully",
@@ -76,6 +117,7 @@ func (h *ProjectHandler) FindAll(c echo.Context) error {
 		"total_page": totalPage,
 	})
 }
+
 func (h *ProjectHandler) FindByID(c echo.Context) error {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {

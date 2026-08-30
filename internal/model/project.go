@@ -29,6 +29,7 @@ type UpdateProjectInput struct {
 type IProjectRepository interface {
 	FindAll(ctx context.Context, project Project, page int, limit int) ([]*Project, int64, error)
 	FindByID(ctx context.Context, id int64) (*Project, error)
+	FindAllByUser(ctx context.Context, project Project, page int, limit int, userID int64) ([]*Project, int64, error)
 	Create(ctx context.Context, project Project) (*Project, error)
 	Update(ctx context.Context, project Project) error
 	Delete(ctx context.Context, id int64) error
@@ -39,6 +40,7 @@ type IProjectRepository interface {
 type IProjectUsecase interface {
 	FindAll(ctx context.Context, project Project, page int, limit int) ([]*Project, int64, error)
 	FindByID(ctx context.Context, id int64) (*Project, error)
+	FindAllByUser(ctx context.Context, project Project, page int, limit int, userID int64) ([]*Project, int64, error)
 	Create(ctx context.Context, in CreateProjectInput) (*Project, error)
 	Update(ctx context.Context, id int64, in UpdateProjectInput) error
 	Delete(ctx context.Context, id int64) error

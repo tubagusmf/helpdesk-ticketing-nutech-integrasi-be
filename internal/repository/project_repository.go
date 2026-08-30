@@ -74,6 +74,50 @@ func (r *ProjectRepo) FindAll(ctx context.Context, filter model.Project, page in
 	return projects, total, nil
 }
 
+func (r *ProjectRepo) FindAllByUser(ctx context.Context, filter model.Project, page int, limit int, userID int64) ([]*model.Project, int64, error) {
+	var projects []*model.Project
+	var total int64
+
+	offset := (page - 1) * limit
+
+	query := r.db.WithContext(ctx).
+		Table("projects").
+		Joins(`
+			INNER JOIN user_projects
+				ON user_projects.project_id = projects.id
+		`).
+		Where("projects.deleted_at IS NULL").
+		Where("user_projects.user_id = ?", userID)
+
+	if filter.Name != "" {
+		query = query.Where(
+			"projects.name ILIKE ?",
+			"%"+filter.Name+"%",
+		)
+	}
+
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+
+	if err := query.
+		Select(`
+			projects.id,
+			projects.name,
+			projects.code_prefix,
+			projects.created_at,
+			projects.updated_at
+		`).
+		Order("projects.name ASC").
+		Limit(limit).
+		Offset(offset).
+		Find(&projects).Error; err != nil {
+		return nil, 0, err
+	}
+
+	return projects, total, nil
+}
+
 func (r *ProjectRepo) Update(ctx context.Context, project model.Project) error {
 	project.UpdatedAt = time.Now()
 

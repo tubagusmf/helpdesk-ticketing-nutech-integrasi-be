@@ -69,6 +69,28 @@ func (u *ProjectUsecase) FindByID(ctx context.Context, id int64) (*model.Project
 	return project, nil
 }
 
+func (u *ProjectUsecase) FindAllByUser(ctx context.Context, filter model.Project, page int, limit int, userID int64) ([]*model.Project, int64, error) {
+	log := logrus.WithFields(logrus.Fields{
+		"filter":  filter,
+		"user_id": userID,
+	})
+
+	projects, total, err := u.projectRepo.FindAllByUser(
+		ctx,
+		filter,
+		page,
+		limit,
+		userID,
+	)
+
+	if err != nil {
+		log.Error("Failed to fetch user projects: ", err)
+		return nil, 0, err
+	}
+
+	return projects, total, nil
+}
+
 func (u *ProjectUsecase) Update(ctx context.Context, id int64, in model.UpdateProjectInput) error {
 	log := logrus.WithFields(logrus.Fields{
 		"id": id,
