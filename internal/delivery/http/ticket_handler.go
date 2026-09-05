@@ -100,70 +100,73 @@ func (h *TicketHandler) Create(c echo.Context) error {
 }
 
 func (h *TicketHandler) FindAll(c echo.Context) error {
-    projectID, _ := strconv.ParseInt(c.QueryParam("project_id"), 10, 64)
-    staffID, _ := strconv.ParseInt(c.QueryParam("assigned_to_id"), 10, 64)
-    reporterID, _ := strconv.ParseInt(c.QueryParam("reporter_id"), 10, 64)
+	projectID, _ := strconv.ParseInt(c.QueryParam("project_id"), 10, 64)
+	staffID, _ := strconv.ParseInt(c.QueryParam("assigned_to_id"), 10, 64)
+	reporterID, _ := strconv.ParseInt(c.QueryParam("reporter_id"), 10, 64)
 
-    ticketCode := c.QueryParam("ticket_code")
-    priority := c.QueryParam("priority")
-    status := c.QueryParam("status")
-    search := c.QueryParam("search")
-    startDate := c.QueryParam("start_date")
-    endDate := c.QueryParam("end_date")
+	ticketCode := c.QueryParam("ticket_code")
+	priority := c.QueryParam("priority")
+	status := c.QueryParam("status")
+	search := c.QueryParam("search")
+	startDate := c.QueryParam("start_date")
+	endDate := c.QueryParam("end_date")
 
-    page, _ := strconv.Atoi(c.QueryParam("page"))
-    if page == 0 {
-        page = 1
-    }
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	if page < 1 {
+		page = 1
+	}
 
-    limit := 10
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	if limit != 10 && limit != 25 && limit != 50 {
+		limit = 10
+	}
 
-    var assignedToID *int64
+	var assignedToID *int64
 
-    if staffID != 0 {
-        assignedToID = &staffID
-    }
+	if staffID != 0 {
+		assignedToID = &staffID
+	}
 
-    filter := model.Ticket{
-        TicketCode:   ticketCode,
-        ProjectID:    projectID,
-        AssignedToID: assignedToID,
-        ReporterID:   reporterID,
-        Priority:     model.TicketPriority(priority),
-        Status:       model.TicketStatus(status),
-    }
+	filter := model.Ticket{
+		TicketCode:   ticketCode,
+		ProjectID:    projectID,
+		AssignedToID: assignedToID,
+		ReporterID:   reporterID,
+		Priority:     model.TicketPriority(priority),
+		Status:       model.TicketStatus(status),
+	}
 
-    claimValue := c.Request().Context().Value(model.BearerAuthKey)
-    if claimValue == nil {
-        return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
-    }
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
 
-    claims := claimValue.(*model.CustomClaims)
+	claims := claimValue.(*model.CustomClaims)
 
-    tickets, total, err := h.ticketUsecase.FindAll(
-        c.Request().Context(),
-        filter,
-        search,
-        startDate,
-        endDate,
-        page,
-        limit,
-        claims.Role,
-        claims.UserID,
-    )
+	tickets, total, err := h.ticketUsecase.FindAll(
+		c.Request().Context(),
+		filter,
+		search,
+		startDate,
+		endDate,
+		page,
+		limit,
+		claims.Role,
+		claims.UserID,
+	)
 
-    if err != nil {
-        return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-    }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 
-    totalPage := int((total + int64(limit) - 1) / int64(limit))
+	totalPage := int((total + int64(limit) - 1) / int64(limit))
 
-    return c.JSON(http.StatusOK, map[string]interface{}{
-        "data":       tickets,
-        "page":       page,
-        "total_data": total,
-        "total_page": totalPage,
-    })
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"data":       tickets,
+		"page":       page,
+		"total_data": total,
+		"total_page": totalPage,
+	})
 }
 
 func (h *TicketHandler) FindByID(c echo.Context) error {
@@ -233,79 +236,79 @@ func (h *TicketHandler) Delete(c echo.Context) error {
 }
 
 func (h *TicketHandler) Export(c echo.Context) error {
-    claimValue := c.Request().Context().Value(model.BearerAuthKey)
-    if claimValue == nil {
-        return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
-    }
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
 
-    claims := claimValue.(*model.CustomClaims)
+	claims := claimValue.(*model.CustomClaims)
 
-    projectID, _ := strconv.ParseInt(c.QueryParam("project_id"), 10, 64)
-    staffID, _ := strconv.ParseInt(c.QueryParam("assigned_to_id"), 10, 64)
-    reporterID, _ := strconv.ParseInt(c.QueryParam("reporter_id"), 10, 64)
+	projectID, _ := strconv.ParseInt(c.QueryParam("project_id"), 10, 64)
+	staffID, _ := strconv.ParseInt(c.QueryParam("assigned_to_id"), 10, 64)
+	reporterID, _ := strconv.ParseInt(c.QueryParam("reporter_id"), 10, 64)
 
-    ticketCode := c.QueryParam("ticket_code")
-    priority := c.QueryParam("priority")
-    status := c.QueryParam("status")
-    search := c.QueryParam("search")
+	ticketCode := c.QueryParam("ticket_code")
+	priority := c.QueryParam("priority")
+	status := c.QueryParam("status")
+	search := c.QueryParam("search")
 
-    startDate := c.QueryParam("start_date")
-    endDate := c.QueryParam("end_date")
+	startDate := c.QueryParam("start_date")
+	endDate := c.QueryParam("end_date")
 
-    var assignedToID *int64
+	var assignedToID *int64
 
-    if staffID != 0 {
-        assignedToID = &staffID
-    }
+	if staffID != 0 {
+		assignedToID = &staffID
+	}
 
-    filter := model.Ticket{
-        TicketCode:   ticketCode,
-        ProjectID:    projectID,
-        AssignedToID: assignedToID,
-        ReporterID:   reporterID,
-        Priority:     model.TicketPriority(priority),
-        Status:       model.TicketStatus(status),
-    }
+	filter := model.Ticket{
+		TicketCode:   ticketCode,
+		ProjectID:    projectID,
+		AssignedToID: assignedToID,
+		ReporterID:   reporterID,
+		Priority:     model.TicketPriority(priority),
+		Status:       model.TicketStatus(status),
+	}
 
-    tickets, _, err := h.ticketUsecase.FindAll(
-        c.Request().Context(),
-        filter,
-        search,
-        startDate,
-        endDate,
-        1,
-        10000,
-        claims.Role,
-        claims.UserID,
-    )
+	tickets, _, err := h.ticketUsecase.FindAll(
+		c.Request().Context(),
+		filter,
+		search,
+		startDate,
+		endDate,
+		1,
+		10000,
+		claims.Role,
+		claims.UserID,
+	)
 
-    if err != nil {
-        return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-    }
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 
-    file, err := helper.GenerateExcelTickets(tickets)
-    if err != nil {
-        return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
-    }
+	file, err := helper.GenerateExcelTickets(tickets)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+	}
 
-    fileName := fmt.Sprintf(
+	fileName := fmt.Sprintf(
 		"ticket_export_%s.xlsx",
 		time.Now().Format("2006-01-02_150405"),
 	)
 
-    c.Response().Header().Set(
+	c.Response().Header().Set(
 		echo.HeaderContentDisposition,
 		fmt.Sprintf(`attachment; filename="%s"`, fileName),
 	)
 
-    c.Response().Header().Set(
-        echo.HeaderContentType,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    )
+	c.Response().Header().Set(
+		echo.HeaderContentType,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+	)
 
-    return c.Blob(
-        http.StatusOK,
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        file.Bytes(),
-    )
+	return c.Blob(
+		http.StatusOK,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		file.Bytes(),
+	)
 }
