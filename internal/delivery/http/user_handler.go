@@ -90,11 +90,14 @@ func (h *UserHandler) FindAll(c echo.Context) error {
 	}
 
 	page, _ := strconv.Atoi(c.QueryParam("page"))
-	if page == 0 {
+	if page < 1 {
 		page = 1
 	}
 
-	limit := 10
+	limit, _ := strconv.Atoi(c.QueryParam("limit"))
+	if limit != 10 && limit != 25 && limit != 50 {
+		limit = 10
+	}
 
 	users, total, err := h.userUsecase.FindAll(
 		c.Request().Context(),
@@ -113,6 +116,7 @@ func (h *UserHandler) FindAll(c echo.Context) error {
 		"message":    "users fetched successfully",
 		"data":       users,
 		"page":       page,
+		"limit":      limit,
 		"total_data": total,
 		"total_page": totalPage,
 	})
