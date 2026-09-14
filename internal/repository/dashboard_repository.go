@@ -148,7 +148,7 @@ func (r *DashboardRepo) GetProjects(ctx context.Context, filter model.DashboardF
 
 	switch filter.Role {
 
-	case "EXECUTIVE", "STAFF":
+	case "EXECUTIVE", "STAFF", "ENGINEER":
 
 		db = db.Where(`
 			EXISTS (
@@ -246,6 +246,20 @@ func applyFilter(db *gorm.DB, filter model.DashboardFilter) *gorm.DB {
 			"tickets.reporter_id = ?",
 			filter.UserID,
 		)
+
+		return db
+	}
+
+	//ENGINEER
+	if filter.Role == "ENGINEER" {
+		db = db.Where(`
+			EXISTS (
+				SELECT 1
+				FROM user_projects up
+				WHERE up.user_id = ?
+				AND up.project_id = tickets.project_id
+			)
+		`, filter.UserID)
 
 		return db
 	}

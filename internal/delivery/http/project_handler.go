@@ -77,7 +77,7 @@ func (h *ProjectHandler) FindAll(c echo.Context) error {
 
 	switch claims.Role {
 
-	case "USER", "EXECUTIVE":
+	case "USER", "EXECUTIVE", "STAFF", "ENGINEER":
 
 		projects, total, err = h.projectUsecase.FindAllByUser(
 			c.Request().Context(),
