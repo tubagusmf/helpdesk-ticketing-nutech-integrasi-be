@@ -140,6 +140,16 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		)
 	`, userID)
 
+	case "ENGINEER":
+		query = query.Where(`
+		EXISTS (
+			SELECT 1
+			FROM user_projects up
+			WHERE up.user_id = ?
+			AND up.project_id = tickets.project_id
+		)
+	`, userID)
+
 	case "ADMINISTRATOR":
 	}
 
@@ -163,18 +173,17 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 			) as unread_comment_count
 		`
 
-	} else if role == "STAFF" {
+	} else if role == "STAFF" || role == "ENGINEER" {
 
 		unreadQuery = `
-			(
-				SELECT COUNT(*)
-				FROM ticket_comments tc
-				WHERE tc.ticket_id = tickets.id
-				AND tc.user_id != ` + fmt.Sprint(userID) + `
-				AND tc.is_read_by_staff = false
-			) as unread_comment_count
-		`
-
+		(
+			SELECT COUNT(*)
+			FROM ticket_comments tc
+			WHERE tc.ticket_id = tickets.id
+			AND tc.user_id != ` + fmt.Sprint(userID) + `
+			AND tc.is_read_by_staff = false
+		) as unread_comment_count
+	`
 	} else if role == "ADMINISTRATOR" {
 
 		unreadQuery = `
