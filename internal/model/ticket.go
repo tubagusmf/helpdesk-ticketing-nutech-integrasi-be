@@ -49,6 +49,7 @@ type Ticket struct {
 type TicketResponse struct {
 	ID                 int64     `json:"id"`
 	TicketCode         string    `json:"ticket_code"`
+	ProjectID          int64     `json:"project_id"`
 	Priority           string    `json:"priority"`
 	Status             string    `json:"status"`
 	Description        string    `json:"description"`
@@ -101,4 +102,5 @@ type ITicketUsecase interface {
 	Create(ctx context.Context, reporterID int64, in CreateTicketInput, attachmentPath *string) (*Ticket, bool, error)
 	UpdateStatus(ctx context.Context, id int64, userID int64, in UpdateTicketStatusInput) error
 	Delete(ctx context.Context, id int64) error
+	Reassign(ctx context.Context, ticketID int64, userID int64, in ReassignTicketInput, attachments []TicketReassignmentAttachment) error
 }

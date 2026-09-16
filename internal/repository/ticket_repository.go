@@ -201,6 +201,7 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		Select(`
 			tickets.id,
 			tickets.ticket_code,
+			tickets.project_id,
 			tickets.priority,
 			tickets.status,
 			tickets.description,
@@ -286,6 +287,7 @@ func (r *TicketRepo) FindResponseByID(ctx context.Context, id int64) (*model.Tic
 		Select(`
 			tickets.id,
 			tickets.ticket_code,
+			tickets.project_id,
 			tickets.priority,
 			tickets.status,
 			tickets.description,

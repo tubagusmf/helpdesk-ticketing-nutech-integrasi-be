@@ -29,6 +29,7 @@ func NewTicketHandler(e *echo.Echo, ticketUsecase model.ITicketUsecase) {
 	group.PUT("/update-status/:id", handler.UpdateStatus, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 	group.GET("/export", handler.Export, AuthMiddleware)
+	group.POST("/reassign/:id", handler.ReassignTicket, AuthMiddleware)
 }
 
 func (h *TicketHandler) Create(c echo.Context) error {
@@ -310,5 +311,144 @@ func (h *TicketHandler) Export(c echo.Context) error {
 		http.StatusOK,
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 		file.Bytes(),
+	)
+}
+
+func (h *TicketHandler) ReassignTicket(c echo.Context) error {
+	ticketID, err := strconv.ParseInt(
+		c.Param("id"),
+		10,
+		64,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid ticket id",
+		)
+	}
+
+	claimValue := c.Request().
+		Context().
+		Value(model.BearerAuthKey)
+
+	if claimValue == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+	}
+
+	claim := claimValue.(*model.CustomClaims)
+
+	var req model.ReassignTicketInput
+
+	req.ToUserID, err = strconv.ParseInt(
+		c.FormValue("to_user_id"),
+		10,
+		64,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid engineer",
+		)
+	}
+
+	req.Message = c.FormValue("message")
+
+	if req.Message == "" {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"message is required",
+		)
+	}
+
+	var attachments []model.TicketReassignmentAttachment
+
+	form, err := c.MultipartForm()
+
+	if err == nil && form != nil {
+
+		files := form.File["attachments"]
+
+		for _, fileHeader := range files {
+
+			// MAX 10 MB / FILE
+			if fileHeader.Size > 10*1024*1024 {
+				return echo.NewHTTPError(
+					http.StatusBadRequest,
+					fmt.Sprintf(
+						"file %s exceeds maximum size of 10MB",
+						fileHeader.Filename,
+					),
+				)
+			}
+
+			file, err := fileHeader.Open()
+
+			if err != nil {
+				return echo.NewHTTPError(
+					http.StatusInternalServerError,
+					"failed to open attachment",
+				)
+			}
+
+			folder := fmt.Sprintf(
+				"tickets/reassign/%d",
+				ticketID,
+			)
+
+			url, err := helper.UploadFile(
+				file,
+				folder,
+				fileHeader.Filename,
+			)
+
+			file.Close()
+
+			if err != nil {
+				log.Println(
+					"failed upload attachment:",
+					err,
+				)
+
+				return echo.NewHTTPError(
+					http.StatusInternalServerError,
+					"failed to upload attachment",
+				)
+			}
+
+			attachments = append(
+				attachments,
+				model.TicketReassignmentAttachment{
+					FileName: fileHeader.Filename,
+					FileURL:  url,
+				},
+			)
+		}
+	}
+
+	err = h.ticketUsecase.Reassign(
+		c.Request().Context(),
+		ticketID,
+		claim.UserID,
+		req,
+		attachments,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(
+		http.StatusOK,
+		map[string]string{
+			"message": "ticket reassigned successfully",
+		},
 	)
 }

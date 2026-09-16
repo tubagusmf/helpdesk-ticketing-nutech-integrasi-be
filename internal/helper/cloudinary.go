@@ -29,3 +29,18 @@ func UploadImage(file multipart.File, folder string) (string, error) {
 
 	return uploadResult.SecureURL, nil
 }
+
+func UploadFile(file multipart.File, folder string, fileName string) (string, error) {
+	ctx := context.Background()
+
+	uploadResult, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
+		Folder:   folder,
+		PublicID: fileName,
+	})
+
+	if err != nil {
+		return "", err
+	}
+
+	return uploadResult.SecureURL, nil
+}

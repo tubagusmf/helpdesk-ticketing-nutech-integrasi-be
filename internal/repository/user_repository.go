@@ -133,6 +133,17 @@ func (r *UserRepo) FindAll(ctx context.Context, filter model.User, page int, lim
 		query = query.Where("users.is_active = ?", true)
 	}
 
+	if filter.ProjectID != 0 {
+		query = query.Where(`
+		EXISTS (
+			SELECT 1
+			FROM user_projects
+			WHERE user_projects.user_id = users.id
+			AND user_projects.project_id = ?
+		)
+	`, filter.ProjectID)
+	}
+
 	if filter.IsOnline {
 		query = query.Where(`
 			users.last_seen > NOW() - INTERVAL '1 minute'

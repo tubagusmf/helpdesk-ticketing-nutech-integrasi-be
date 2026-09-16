@@ -15,26 +15,29 @@ import (
 )
 
 type TicketUsecase struct {
-	ticketRepo        model.ITicketRepository
-	ticketHistoryRepo model.ITicketHistoryRepository
-	projectRepo       model.IProjectRepository
-	db                *gorm.DB
-	hub               *ws.Hub
+	ticketRepo         model.ITicketRepository
+	ticketHistoryRepo  model.ITicketHistoryRepository
+	ticketReassignRepo model.ITicketReassignmentRepository
+	projectRepo        model.IProjectRepository
+	db                 *gorm.DB
+	hub                *ws.Hub
 }
 
 func NewTicketUsecase(
 	db *gorm.DB,
 	ticketRepo model.ITicketRepository,
 	historyRepo model.ITicketHistoryRepository,
+	reassignRepo model.ITicketReassignmentRepository,
 	projectRepo model.IProjectRepository,
 	hub *ws.Hub,
 ) model.ITicketUsecase {
 	return &TicketUsecase{
-		db:                db,
-		ticketRepo:        ticketRepo,
-		ticketHistoryRepo: historyRepo,
-		projectRepo:       projectRepo,
-		hub:               hub,
+		db:                 db,
+		ticketRepo:         ticketRepo,
+		ticketHistoryRepo:  historyRepo,
+		ticketReassignRepo: reassignRepo,
+		projectRepo:        projectRepo,
+		hub:                hub,
 	}
 }
 
@@ -430,4 +433,154 @@ func (u *TicketUsecase) getNextTicketSequence(ctx context.Context, projectCode s
 	}
 
 	return seq, nil
+}
+
+func (u *TicketUsecase) Reassign(ctx context.Context, ticketID int64, userID int64, in model.ReassignTicketInput, attachments []model.TicketReassignmentAttachment) error {
+	log := logrus.WithFields(logrus.Fields{
+		"ticket_id":  ticketID,
+		"user_id":    userID,
+		"to_user_id": in.ToUserID,
+		"message":    in.Message,
+	})
+
+	if err := validate.Struct(in); err != nil {
+		log.Error("validation error:", err)
+		return err
+	}
+
+	ticket, err := u.ticketRepo.FindByID(ctx, ticketID)
+	if err != nil {
+		log.Error("Failed to find ticket:", err)
+		return err
+	}
+
+	var targetUser model.User
+
+	if err := u.db.WithContext(ctx).
+		Where("id = ?", in.ToUserID).
+		First(&targetUser).Error; err != nil {
+		return err
+	}
+
+	if targetUser.RoleID != 5 {
+		return errors.New("ticket can only be reassigned to ENGINEER")
+	}
+
+	var count int64
+
+	err = u.db.WithContext(ctx).
+		Table("user_projects").
+		Where("user_id = ?", in.ToUserID).
+		Where("project_id = ?", ticket.ProjectID).
+		Count(&count).
+		Error
+
+	if err != nil {
+		return err
+	}
+
+	if count == 0 {
+		return errors.New(
+			"engineer is not assigned to this project",
+		)
+	}
+
+	oldAssignedID := ticket.AssignedToID
+	newAssignedID := in.ToUserID
+
+	ticket.AssignedToID = &newAssignedID
+
+	if err := u.ticketRepo.Update(ctx, *ticket); err != nil {
+		return err
+	}
+
+	reassignment := &model.TicketReassignment{
+		TicketID:   ticketID,
+		FromUserID: oldAssignedID,
+		ToUserID:   in.ToUserID,
+		Message:    in.Message,
+	}
+
+	if err := u.ticketReassignRepo.Create(
+		ctx,
+		reassignment,
+	); err != nil {
+		return err
+	}
+
+	for _, attachment := range attachments {
+
+		attachment.ReassignmentID = reassignment.ID
+
+		if err := u.ticketReassignRepo.CreateAttachment(
+			ctx,
+			&attachment,
+		); err != nil {
+			return err
+		}
+	}
+
+	oldValue := ""
+	if oldAssignedID != nil {
+		oldValue = fmt.Sprintf("%d", *oldAssignedID)
+	}
+
+	newValue := fmt.Sprintf("%d", newAssignedID)
+
+	history, err := u.ticketHistoryRepo.Create(
+		ctx,
+		model.TicketHistory{
+			TicketID:  ticketID,
+			UserID:    userID,
+			Action:    "REASSIGNED",
+			FieldName: "assigned_to_id",
+			OldValue:  &oldValue,
+			NewValue:  &newValue,
+		},
+	)
+
+	if err == nil {
+
+		histories, err := u.ticketHistoryRepo.FindByTicketID(
+			ctx,
+			history.TicketID,
+		)
+
+		if err == nil && len(histories) > 0 {
+
+			latest := histories[0]
+			latest.Type = "REASSIGNED"
+
+			BroadcastTicketHistory(
+				u.hub,
+				latest,
+			)
+		}
+	}
+
+	ticketResp, err := u.ticketRepo.FindResponseByID(
+		ctx,
+		ticketID,
+	)
+
+	if err != nil {
+		return err
+	}
+
+	ws.BroadcastToRoles(
+		u.hub,
+		[]string{
+			"ADMINISTRATOR",
+			"EXECUTIVE",
+			"STAFF",
+			"USER",
+			"ENGINEER",
+		},
+		ws.Message{
+			Type: ws.EventTicketUpdated,
+			Data: ticketResp,
+		},
+	)
+
+	return nil
 }

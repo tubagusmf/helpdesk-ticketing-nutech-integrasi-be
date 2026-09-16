@@ -89,6 +89,13 @@ func (h *UserHandler) FindAll(c echo.Context) error {
 		filter.RoleID = id
 	}
 
+	if projectID := c.QueryParam("project_id"); projectID != "" {
+		id, err := strconv.ParseInt(projectID, 10, 64)
+		if err == nil {
+			filter.ProjectID = id
+		}
+	}
+
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1

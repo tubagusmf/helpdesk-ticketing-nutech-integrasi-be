@@ -35,7 +35,8 @@ type User struct {
 	UpdatedAt            time.Time  `json:"updated_at"`
 	DeletedAt            *time.Time `json:"-"`
 
-	Projects []Project `gorm:"many2many:user_projects;" json:"projects,omitempty"`
+	Projects  []Project `gorm:"many2many:user_projects;" json:"projects,omitempty"`
+	ProjectID int64     `json:"-" gorm:"-"`
 }
 
 type IUserRepository interface {
