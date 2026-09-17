@@ -12,7 +12,7 @@ type TicketReassignment struct {
 	ToUserID    int64                          `json:"to_user_id"`
 	Message     string                         `json:"message"`
 	CreatedAt   time.Time                      `json:"created_at"`
-	Attachments []TicketReassignmentAttachment `json:"attachments"`
+	Attachments []TicketReassignmentAttachment `json:"attachments" gorm:"foreignKey:ReassignmentID;references:ID"`
 }
 
 type TicketReassignmentAttachment struct {

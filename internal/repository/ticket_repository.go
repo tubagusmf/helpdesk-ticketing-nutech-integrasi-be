@@ -142,13 +142,13 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 
 	case "ENGINEER":
 		query = query.Where(`
-		EXISTS (
-			SELECT 1
-			FROM user_projects up
-			WHERE up.user_id = ?
-			AND up.project_id = tickets.project_id
-		)
-	`, userID)
+        EXISTS (
+            SELECT 1
+            FROM ticket_reassignments tr
+            WHERE tr.ticket_id = tickets.id
+            AND tr.to_user_id = ?
+        )
+    `, userID)
 
 	case "ADMINISTRATOR":
 	}
