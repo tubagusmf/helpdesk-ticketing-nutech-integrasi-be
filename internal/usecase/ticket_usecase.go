@@ -584,3 +584,36 @@ func (u *TicketUsecase) Reassign(ctx context.Context, ticketID int64, userID int
 
 	return nil
 }
+
+func (u *TicketUsecase) GetReassignmentByTicketID(ctx context.Context, ticketID int64) (*model.TicketReassignment, error) {
+	reassignments, err := u.ticketReassignRepo.FindByTicketID(
+		ctx,
+		ticketID,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if len(reassignments) == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	data := reassignments[0]
+
+	for _, reassignment := range reassignments {
+		if reassignment == nil {
+			continue
+		}
+
+		if data == nil || reassignment.CreatedAt.After(data.CreatedAt) {
+			data = reassignment
+		}
+	}
+
+	if data == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+
+	return data, nil
+}

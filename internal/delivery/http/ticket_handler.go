@@ -30,6 +30,7 @@ func NewTicketHandler(e *echo.Echo, ticketUsecase model.ITicketUsecase) {
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
 	group.GET("/export", handler.Export, AuthMiddleware)
 	group.POST("/reassign/:id", handler.ReassignTicket, AuthMiddleware)
+	group.GET("/:id/reassignment", handler.GetByTicketID, AuthMiddleware)
 }
 
 func (h *TicketHandler) Create(c echo.Context) error {
@@ -424,7 +425,7 @@ func (h *TicketHandler) ReassignTicket(c echo.Context) error {
 				attachments,
 				model.TicketReassignmentAttachment{
 					FileName: fileHeader.Filename,
-					FileURL:  url,
+					FileURL:  url.SecureURL,
 				},
 			)
 		}
@@ -450,5 +451,34 @@ func (h *TicketHandler) ReassignTicket(c echo.Context) error {
 		map[string]string{
 			"message": "ticket reassigned successfully",
 		},
+	)
+}
+
+func (h *TicketHandler) GetByTicketID(c echo.Context) error {
+	idParam := c.Param("id")
+
+	ticketID, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid ticket id",
+		)
+	}
+
+	reassignment, err := h.ticketUsecase.GetReassignmentByTicketID(
+		c.Request().Context(),
+		ticketID,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusNotFound,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(
+		http.StatusOK,
+		reassignment,
 	)
 }

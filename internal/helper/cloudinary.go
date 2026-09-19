@@ -10,6 +10,11 @@ import (
 
 var cld *cloudinary.Cloudinary
 
+type UploadFileResult struct {
+	SecureURL string
+	PublicID  string
+}
+
 func InitCloudinary(cloudName, apiKey, apiSecret string) error {
 	var err error
 	cld, err = cloudinary.NewFromParams(cloudName, apiKey, apiSecret)
@@ -30,17 +35,24 @@ func UploadImage(file multipart.File, folder string) (string, error) {
 	return uploadResult.SecureURL, nil
 }
 
-func UploadFile(file multipart.File, folder string, fileName string) (string, error) {
+func UploadFile(file multipart.File, folder string, fileName string) (*UploadFileResult, error) {
 	ctx := context.Background()
 
-	uploadResult, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
-		Folder:   folder,
-		PublicID: fileName,
-	})
+	uploadResult, err := cld.Upload.Upload(
+		ctx,
+		file,
+		uploader.UploadParams{
+			Folder:   folder,
+			PublicID: fileName,
+		},
+	)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return uploadResult.SecureURL, nil
+	return &UploadFileResult{
+		SecureURL: uploadResult.SecureURL,
+		PublicID:  uploadResult.PublicID,
+	}, nil
 }

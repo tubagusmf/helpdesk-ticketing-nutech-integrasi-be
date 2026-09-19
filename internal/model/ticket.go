@@ -103,4 +103,5 @@ type ITicketUsecase interface {
 	UpdateStatus(ctx context.Context, id int64, userID int64, in UpdateTicketStatusInput) error
 	Delete(ctx context.Context, id int64) error
 	Reassign(ctx context.Context, ticketID int64, userID int64, in ReassignTicketInput, attachments []TicketReassignmentAttachment) error
+	GetReassignmentByTicketID(ctx context.Context, ticketID int64) (*TicketReassignment, error)
 }

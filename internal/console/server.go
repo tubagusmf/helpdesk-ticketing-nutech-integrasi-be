@@ -81,6 +81,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	dashboardRepo := repository.NewDashboardRepo(postgresDB)
 	notificationRepo := repository.NewNotificationRepo(postgresDB)
 	ticketReassignRepo := repository.NewTicketReassignmentRepo(postgresDB)
+	ticketResolutionEngineerRepo := repository.NewTicketEngineerResolutionRepo(postgresDB)
 
 	hub := ws.NewHub()
 
@@ -100,6 +101,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	ticketResolutionUsecase := usecase.NewTicketResolutionUsecase(postgresDB, ticketResolution, ticketHistoryRepo, ticketRepo, hub)
 	dashboardUsecase := usecase.NewDashboardUsecase(dashboardRepo)
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo)
+	ticketResolutionEngineerUsecase := usecase.NewTicketEngineerResolutionUsecase(postgresDB, ticketResolutionEngineerRepo, ticketRepo, userRepo)
 
 	ticketWorker := worker.NewTicketWorker(postgresDB, hub)
 	go ticketWorker.Start()
@@ -130,6 +132,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewTicketResolutionHandler(e, ticketResolutionUsecase)
 	handlerHttp.NewDashboardHandler(e, dashboardUsecase)
 	handlerHttp.NewNotificationHandler(e, notificationUsecase)
+	handlerHttp.NewTicketEngineerResolutionHandler(e, ticketResolutionEngineerUsecase)
 
 	wsHandler := ws.NewHandler(hub)
 
