@@ -31,7 +31,7 @@ func (r *TicketReassignmentRepo) FindByTicketID(ctx context.Context, ticketID in
 	err := r.db.WithContext(ctx).
 		Where("ticket_id = ?", ticketID).
 		Preload("Attachments").
-		Order("created_at DESC").
+		Order("created_at ASC").
 		Find(&data).
 		Error
 

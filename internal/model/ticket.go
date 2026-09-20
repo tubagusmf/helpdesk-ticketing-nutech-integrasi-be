@@ -47,28 +47,29 @@ type Ticket struct {
 }
 
 type TicketResponse struct {
-	ID                 int64     `json:"id"`
-	TicketCode         string    `json:"ticket_code"`
-	ProjectID          int64     `json:"project_id"`
-	Priority           string    `json:"priority"`
-	Status             string    `json:"status"`
-	Description        string    `json:"description"`
-	OnholdNotes        *string   `json:"onhold_notes"`
-	Attachment         *string   `json:"attachment_url"`
-	SolutionAttachment *string   `json:"solution_attachment_url"`
-	ProjectName        string    `json:"project_name"`
-	LocationName       string    `json:"location_name"`
-	AssetCode          string    `json:"asset_code"`
-	PartID             int64     `json:"part_id"`
-	PartName           string    `json:"part_name"`
-	AssetID            int64     `json:"asset_id"`
-	ReporterName       string    `json:"reporter_name"`
-	ReporterID         int64     `json:"reporter_id"`
-	AssignedToID       *int64    `json:"assigned_to_id"`
-	AssignedToName     string    `json:"assigned_to_name"`
-	CreatedAt          time.Time `json:"created_at"`
-	DueAt              time.Time `json:"due_at"`
-	UnreadCommentCount int64     `json:"unread_comment_count"`
+	ID                 int64      `json:"id"`
+	TicketCode         string     `json:"ticket_code"`
+	ProjectID          int64      `json:"project_id"`
+	Priority           string     `json:"priority"`
+	Status             string     `json:"status"`
+	Description        string     `json:"description"`
+	OnholdNotes        *string    `json:"onhold_notes"`
+	Attachment         *string    `json:"attachment_url"`
+	SolutionAttachment *string    `json:"solution_attachment_url"`
+	ProjectName        string     `json:"project_name"`
+	LocationName       string     `json:"location_name"`
+	AssetCode          string     `json:"asset_code"`
+	PartID             int64      `json:"part_id"`
+	PartName           string     `json:"part_name"`
+	AssetID            int64      `json:"asset_id"`
+	ReporterName       string     `json:"reporter_name"`
+	ReporterID         int64      `json:"reporter_id"`
+	AssignedToID       *int64     `json:"assigned_to_id"`
+	AssignedToName     string     `json:"assigned_to_name"`
+	ReassignedAt       *time.Time `json:"reassigned_at"`
+	CreatedAt          time.Time  `json:"created_at"`
+	DueAt              time.Time  `json:"due_at"`
+	UnreadCommentCount int64      `json:"unread_comment_count"`
 }
 
 type CreateTicketInput struct {

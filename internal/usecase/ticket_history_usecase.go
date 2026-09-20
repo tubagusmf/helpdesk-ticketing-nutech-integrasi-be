@@ -37,10 +37,11 @@ func (u *TicketHistoryUsecase) FindByTicketID(ctx context.Context, ticketID int6
 	var result []*model.TicketHistoryResponse
 
 	for _, h := range histories {
-
 		h.Type = mapAction(h.Action, h.FieldName)
 
-		if h.Action == "COMMENT" || h.Action == "ONHOLD_NOTE" {
+		if h.Action == "COMMENT" ||
+			h.Action == "ONHOLD_NOTE" ||
+			h.Action == "ENGINEER_RESOLUTION" {
 			h.Message = h.NewValue
 		}
 
@@ -76,7 +77,6 @@ func (u *TicketHistoryUsecase) BroadcastLatestHistory(ctx context.Context, ticke
 
 func mapAction(action, field string) string {
 	switch action {
-
 	case "CREATE", "CREATED":
 		return "CREATED"
 
@@ -91,6 +91,12 @@ func mapAction(action, field string) string {
 
 	case "ONHOLD_NOTE":
 		return "ONHOLD_NOTE"
+
+	case "REASSIGNED":
+		return "REASSIGNED"
+
+	case "ENGINEER_RESOLUTION":
+		return "ENGINEER_RESOLUTION"
 	}
 
 	return "OTHER"
@@ -113,6 +119,8 @@ func BroadcastTicketHistory(hub *ws.Hub, history interface{}) {
 		"ADMINISTRATOR",
 		"STAFF",
 		"USER",
+		"EXECUTIVE",
+		"ENGINEER",
 	}
 
 	for _, role := range roles {

@@ -47,7 +47,18 @@ func (r *TicketRepo) FindByID(ctx context.Context, id int64) (*model.Ticket, err
 	return &ticket, nil
 }
 
-func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search string, startDate string, endDate string, page int, limit int, role string, userID int64) ([]*model.TicketResponse, int64, error) {
+func (r *TicketRepo) FindAll(
+	ctx context.Context,
+	filter model.Ticket,
+	search string,
+	startDate string,
+	endDate string,
+	page int,
+	limit int,
+	role string,
+	userID int64,
+) ([]*model.TicketResponse, int64, error) {
+
 	var tickets []*model.TicketResponse
 	var total int64
 
@@ -55,17 +66,39 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 
 	query := r.db.WithContext(ctx).
 		Table("tickets").
-		Joins("LEFT JOIN projects ON projects.id = tickets.project_id").
-		Joins("LEFT JOIN locations ON locations.id = tickets.location_id").
-		Joins("LEFT JOIN parts ON parts.id = tickets.part_id").
-		Joins("LEFT JOIN asset_ids ON asset_ids.id = tickets.asset_id").
-		Joins("LEFT JOIN users as reporter ON reporter.id = tickets.reporter_id").
-		Joins("LEFT JOIN users as assigned ON assigned.id = tickets.assigned_to_id").
-		Joins("LEFT JOIN ticket_resolutions ON ticket_resolutions.ticket_id = tickets.id").
-		Where("tickets.deleted_at IS NULL")
+		Joins(`
+			LEFT JOIN projects
+				ON projects.id = tickets.project_id
+		`).
+		Joins(`
+			LEFT JOIN locations
+				ON locations.id = tickets.location_id
+		`).
+		Joins(`
+			LEFT JOIN parts
+				ON parts.id = tickets.part_id
+		`).
+		Joins(`
+			LEFT JOIN asset_ids
+				ON asset_ids.id = tickets.asset_id
+		`).
+		Joins(`
+			LEFT JOIN users AS reporter
+				ON reporter.id = tickets.reporter_id
+		`).
+		Joins(`
+			LEFT JOIN users AS assigned
+				ON assigned.id = tickets.assigned_to_id
+		`).
+		Joins(`
+			LEFT JOIN ticket_resolutions
+				ON ticket_resolutions.ticket_id = tickets.id
+		`).
+		Where(`
+			tickets.deleted_at IS NULL
+		`)
 
 	if search != "" {
-
 		s := "%" + search + "%"
 
 		query = query.Where(`
@@ -76,90 +109,138 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 				OR assigned.name ILIKE ?
 				OR projects.name ILIKE ?
 			)
-		`, s, s, s, s, s)
+		`,
+			s,
+			s,
+			s,
+			s,
+			s,
+		)
 	}
 
 	if filter.TicketCode != "" {
-		query = query.Where("tickets.ticket_code = ?", filter.TicketCode)
+		query = query.Where(
+			"tickets.ticket_code = ?",
+			filter.TicketCode,
+		)
 	}
 
 	if filter.ProjectID != 0 {
-		query = query.Where("tickets.project_id = ?", filter.ProjectID)
+		query = query.Where(
+			"tickets.project_id = ?",
+			filter.ProjectID,
+		)
 	}
 
 	if filter.AssignedToID != nil {
-		query = query.Where("tickets.assigned_to_id = ?", *filter.AssignedToID)
+		query = query.Where(
+			"tickets.assigned_to_id = ?",
+			*filter.AssignedToID,
+		)
 	}
 
 	if filter.ReporterID != 0 {
-		query = query.Where("tickets.reporter_id = ?", filter.ReporterID)
+		query = query.Where(
+			"tickets.reporter_id = ?",
+			filter.ReporterID,
+		)
 	}
 
 	if filter.Priority != "" {
-		query = query.Where("tickets.priority = ?", filter.Priority)
+		query = query.Where(
+			"tickets.priority = ?",
+			filter.Priority,
+		)
 	}
 
 	if filter.Status != "" {
-		query = query.Where("tickets.status = ?", filter.Status)
+		query = query.Where(
+			"tickets.status = ?",
+			filter.Status,
+		)
 	}
 
 	if startDate != "" {
-		query = query.Where("DATE(tickets.created_at) >= ?", startDate)
+		query = query.Where(
+			"DATE(tickets.created_at) >= ?",
+			startDate,
+		)
 	}
 
 	if endDate != "" {
-		query = query.Where("DATE(tickets.created_at) <= ?", endDate)
+		query = query.Where(
+			"DATE(tickets.created_at) <= ?",
+			endDate,
+		)
 	}
 
 	switch role {
+
 	case "STAFF":
+
 		query = query.Where(
 			"tickets.assigned_to_id = ?",
 			userID,
 		)
 
 	case "USER":
+
 		query = query.
-			Where("tickets.reporter_id = ?", userID).
+			Where(
+				"tickets.reporter_id = ?",
+				userID,
+			).
 			Where(`
+				EXISTS (
+					SELECT 1
+					FROM user_projects up
+					WHERE up.user_id = ?
+					AND up.project_id = tickets.project_id
+				)
+			`,
+				userID,
+			)
+
+	case "EXECUTIVE":
+
+		query = query.Where(`
 			EXISTS (
 				SELECT 1
 				FROM user_projects up
 				WHERE up.user_id = ?
 				AND up.project_id = tickets.project_id
 			)
-		`, userID)
-
-	case "EXECUTIVE":
-		query = query.Where(`
-		EXISTS (
-			SELECT 1
-			FROM user_projects up
-			WHERE up.user_id = ?
-			AND up.project_id = tickets.project_id
+		`,
+			userID,
 		)
-	`, userID)
 
 	case "ENGINEER":
-		query = query.Where(`
-        EXISTS (
-            SELECT 1
-            FROM ticket_reassignments tr
-            WHERE tr.ticket_id = tickets.id
-            AND tr.to_user_id = ?
-        )
-    `, userID)
+
+		query = query.
+			Where(
+				"tickets.assigned_to_id = ?",
+				userID,
+			).
+			Where(`
+				EXISTS (
+					SELECT 1
+					FROM ticket_reassignments tr
+					WHERE tr.ticket_id = tickets.id
+					AND tr.to_user_id = ?
+				)
+			`,
+				userID,
+			)
 
 	case "ADMINISTRATOR":
+
 	}
 
 	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
-	unreadQuery := `
-		0 as unread_comment_count
-	`
+	unreadQuery := `0 AS unread_comment_count`
 
 	if role == "USER" {
 
@@ -170,20 +251,21 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 				WHERE tc.ticket_id = tickets.id
 				AND tc.user_id != ` + fmt.Sprint(userID) + `
 				AND tc.is_read_by_user = false
-			) as unread_comment_count
+			) AS unread_comment_count
 		`
 
 	} else if role == "STAFF" || role == "ENGINEER" {
 
 		unreadQuery = `
-		(
-			SELECT COUNT(*)
-			FROM ticket_comments tc
-			WHERE tc.ticket_id = tickets.id
-			AND tc.user_id != ` + fmt.Sprint(userID) + `
-			AND tc.is_read_by_staff = false
-		) as unread_comment_count
-	`
+			(
+				SELECT COUNT(*)
+				FROM ticket_comments tc
+				WHERE tc.ticket_id = tickets.id
+				AND tc.user_id != ` + fmt.Sprint(userID) + `
+				AND tc.is_read_by_staff = false
+			) AS unread_comment_count
+		`
+
 	} else if role == "ADMINISTRATOR" {
 
 		unreadQuery = `
@@ -193,59 +275,114 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 				WHERE tc.ticket_id = tickets.id
 				AND tc.user_id != ` + fmt.Sprint(userID) + `
 				AND tc.is_read_by_administrator = false
-			) as unread_comment_count
+			) AS unread_comment_count
 		`
 	}
 
-	if err := query.
-		Select(`
-			tickets.id,
-			tickets.ticket_code,
-			tickets.project_id,
-			tickets.priority,
-			tickets.status,
-			tickets.description,
-			tickets.onhold_notes,
-			tickets.created_at,
-			tickets.due_at,
-			tickets.reporter_id,
-			tickets.part_id,
-			tickets.asset_id,
-			tickets.attachment,
-			tickets.assigned_to_id,
-			ticket_resolutions.attachment_url AS solution_attachment,
+	reassignedSelect := `
+		NULL AS reassigned_at
+	`
 
-			projects.name as project_name,
-			locations.name as location_name,
-			parts.name as part_name,
-			asset_ids.name as asset_code,
-			reporter.name as reporter_name,
-			assigned.name as assigned_to_name,
+	var selectArgs []interface{}
 
-			` + unreadQuery + `
-		`).
-		Order("tickets.created_at DESC").
-		Limit(limit).
-		Offset(offset).
-		Scan(&tickets).Error; err != nil {
+	if role == "ENGINEER" {
 
-		for _, ticket := range tickets {
+		reassignedSelect = `
+			(
+				SELECT MAX(tr.created_at)
+				FROM ticket_reassignments tr
+				WHERE tr.ticket_id = tickets.id
+				AND tr.to_user_id = ?
+			) AS reassigned_at
+		`
 
-			count, err := r.ticketCommentRepo.CountUnreadByTicket(
-				ctx,
-				ticket.ID,
-				role,
-				userID,
+		selectArgs = append(
+			selectArgs,
+			userID,
+		)
+	}
+
+	selectQuery := `
+		tickets.id,
+		tickets.ticket_code,
+		tickets.project_id,
+		tickets.priority,
+		tickets.status,
+		tickets.description,
+		tickets.onhold_notes,
+		tickets.created_at,
+		tickets.due_at,
+		tickets.reporter_id,
+		tickets.part_id,
+		tickets.asset_id,
+		tickets.attachment,
+		tickets.assigned_to_id,
+
+		ticket_resolutions.attachment_url AS solution_attachment,
+
+		projects.name AS project_name,
+		locations.name AS location_name,
+		parts.name AS part_name,
+		asset_ids.name AS asset_code,
+
+		reporter.name AS reporter_name,
+		assigned.name AS assigned_to_name,
+
+		` + reassignedSelect + `,
+
+		` + unreadQuery
+
+	if role == "ENGINEER" {
+
+		engineerUserID := fmt.Sprint(userID)
+
+		query = query.
+			Order(`
+					(
+						SELECT MAX(tr.created_at)
+						FROM ticket_reassignments tr
+						WHERE tr.ticket_id = tickets.id
+						AND tr.to_user_id = ` + engineerUserID + `
+					) DESC NULLS LAST
+				`).
+			Order(
+				"tickets.created_at DESC",
 			)
 
-			if err != nil {
-				return nil, 0, err
-			}
+	} else {
 
-			ticket.UnreadCommentCount = count
-		}
+		query = query.Order(
+			"tickets.created_at DESC",
+		)
+	}
+
+	if err := query.
+		Select(
+			selectQuery,
+			selectArgs...,
+		).
+		Limit(limit).
+		Offset(offset).
+		Scan(&tickets).
+		Error; err != nil {
 
 		return nil, 0, err
+	}
+
+	for _, ticket := range tickets {
+
+		count, err := r.ticketCommentRepo.CountUnreadByTicket(
+			ctx,
+			ticket.ID,
+			role,
+			userID,
+		)
+
+		if err != nil {
+			return nil, 0, err
+		}
+
+		ticket.UnreadCommentCount = count
 	}
 
 	return tickets, total, nil

@@ -11,6 +11,7 @@ import (
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
+	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 	"gorm.io/gorm"
 )
 
@@ -19,10 +20,12 @@ const (
 )
 
 type TicketEngineerResolutionUsecase struct {
-	db             *gorm.DB
-	resolutionRepo model.ITicketEngineerResolutionRepository
-	ticketRepo     model.ITicketRepository
-	userRepo       model.IUserRepository
+	db                *gorm.DB
+	resolutionRepo    model.ITicketEngineerResolutionRepository
+	ticketRepo        model.ITicketRepository
+	userRepo          model.IUserRepository
+	ticketHistoryRepo model.ITicketHistoryRepository
+	hub               *ws.Hub
 }
 
 func NewTicketEngineerResolutionUsecase(
@@ -30,12 +33,16 @@ func NewTicketEngineerResolutionUsecase(
 	resolutionRepo model.ITicketEngineerResolutionRepository,
 	ticketRepo model.ITicketRepository,
 	userRepo model.IUserRepository,
+	ticketHistoryRepo model.ITicketHistoryRepository,
+	hub *ws.Hub,
 ) *TicketEngineerResolutionUsecase {
 	return &TicketEngineerResolutionUsecase{
-		db:             db,
-		resolutionRepo: resolutionRepo,
-		ticketRepo:     ticketRepo,
-		userRepo:       userRepo,
+		db:                db,
+		resolutionRepo:    resolutionRepo,
+		ticketRepo:        ticketRepo,
+		userRepo:          userRepo,
+		ticketHistoryRepo: ticketHistoryRepo,
+		hub:               hub,
 	}
 }
 
@@ -175,6 +182,46 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		resolution.Attachments = append(
 			resolution.Attachments,
 			*attachment,
+		)
+	}
+
+	history, err := u.ticketHistoryRepo.Create(
+		ctx,
+		model.TicketHistory{
+			TicketID:  ticketID,
+			UserID:    engineerID,
+			Action:    "ENGINEER_RESOLUTION",
+			FieldName: "engineer_resolution",
+			NewValue:  &solution,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"gagal menyimpan history engineer resolution: %w",
+			err,
+		)
+	}
+
+	histories, err := u.ticketHistoryRepo.FindByTicketID(
+		ctx,
+		history.TicketID,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"gagal mengambil history engineer resolution: %w",
+			err,
+		)
+	}
+
+	if len(histories) > 0 {
+		latest := histories[0]
+		latest.Type = "ENGINEER_RESOLUTION"
+
+		BroadcastTicketHistory(
+			u.hub,
+			latest,
 		)
 	}
 
