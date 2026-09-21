@@ -154,10 +154,22 @@ func (r *TicketRepo) FindAll(
 	}
 
 	if filter.Status != "" {
-		query = query.Where(
-			"tickets.status = ?",
-			filter.Status,
-		)
+		if role == "ENGINEER" {
+			query = query.Where(`
+				EXISTS (
+					SELECT 1
+					FROM ticket_reassignments tr
+					WHERE tr.ticket_id = tickets.id
+					AND tr.to_user_id = ?
+					AND tr.status = ?
+				)
+			`, userID, filter.Status)
+		} else {
+			query = query.Where(
+				"tickets.status = ?",
+				filter.Status,
+			)
+		}
 	}
 
 	if startDate != "" {
@@ -177,11 +189,17 @@ func (r *TicketRepo) FindAll(
 	switch role {
 
 	case "STAFF":
-
-		query = query.Where(
-			"tickets.assigned_to_id = ?",
-			userID,
-		)
+		query = query.Where(`
+			(
+				tickets.assigned_to_id = ?
+				OR EXISTS (
+					SELECT 1
+					FROM ticket_reassignments tr
+					WHERE tr.ticket_id = tickets.id
+					AND tr.from_user_id = ?
+				)
+			)
+		`, userID, userID)
 
 	case "USER":
 
@@ -215,22 +233,17 @@ func (r *TicketRepo) FindAll(
 		)
 
 	case "ENGINEER":
-
-		query = query.
-			Where(
-				"tickets.assigned_to_id = ?",
-				userID,
-			).
-			Where(`
-				EXISTS (
+		query = query.Where(`
+			(
+				tickets.assigned_to_id = ?
+				OR EXISTS (
 					SELECT 1
 					FROM ticket_reassignments tr
 					WHERE tr.ticket_id = tickets.id
 					AND tr.to_user_id = ?
 				)
-			`,
-				userID,
 			)
+		`, userID, userID)
 
 	case "ADMINISTRATOR":
 
@@ -280,24 +293,43 @@ func (r *TicketRepo) FindAll(
 	}
 
 	reassignedSelect := `
-		NULL AS reassigned_at
-	`
+    NULL AS reassigned_at
+`
+
+	engineerStatusSelect := `
+    '' AS engineer_status
+`
 
 	var selectArgs []interface{}
 
 	if role == "ENGINEER" {
 
 		reassignedSelect = `
-			(
-				SELECT MAX(tr.created_at)
-				FROM ticket_reassignments tr
-				WHERE tr.ticket_id = tickets.id
-				AND tr.to_user_id = ?
-			) AS reassigned_at
-		`
+        (
+            SELECT MAX(tr.created_at)
+            FROM ticket_reassignments tr
+            WHERE tr.ticket_id = tickets.id
+            AND tr.to_user_id = ?
+        ) AS reassigned_at
+    `
+
+		engineerStatusSelect = `
+        COALESCE(
+            (
+                SELECT tr.status
+                FROM ticket_reassignments tr
+                WHERE tr.ticket_id = tickets.id
+                AND tr.to_user_id = ?
+                ORDER BY tr.created_at DESC, tr.id DESC
+                LIMIT 1
+            ),
+            ''
+        ) AS engineer_status
+    `
 
 		selectArgs = append(
 			selectArgs,
+			userID,
 			userID,
 		)
 	}
@@ -329,7 +361,7 @@ func (r *TicketRepo) FindAll(
 		assigned.name AS assigned_to_name,
 
 		` + reassignedSelect + `,
-
+		` + engineerStatusSelect + `,
 		` + unreadQuery
 
 	if role == "ENGINEER" {
@@ -422,28 +454,36 @@ func (r *TicketRepo) FindResponseByID(ctx context.Context, id int64) (*model.Tic
 	err := r.db.WithContext(ctx).
 		Table("tickets").
 		Select(`
-			tickets.id,
-			tickets.ticket_code,
-			tickets.project_id,
-			tickets.priority,
-			tickets.status,
-			tickets.description,
-			tickets.onhold_notes,
-			tickets.created_at,
-			tickets.due_at,
-			tickets.reporter_id,
-			tickets.part_id,
-			tickets.asset_id,
-			tickets.attachment,
-			tickets.assigned_to_id,
+        tickets.id,
+        tickets.ticket_code,
+        tickets.project_id,
+        tickets.priority,
+        tickets.status,
+        tickets.description,
+        tickets.onhold_notes,
+        tickets.created_at,
+        tickets.due_at,
+        tickets.reporter_id,
+        tickets.part_id,
+        tickets.asset_id,
+        tickets.attachment,
+        tickets.assigned_to_id,
 
-			projects.name as project_name,
-			locations.name as location_name,
-			parts.name as part_name,
-			asset_ids.name as asset_code,
-			reporter.name as reporter_name,
-			assigned.name as assigned_to_name
-		`).
+        projects.name as project_name,
+        locations.name as location_name,
+        parts.name as part_name,
+        asset_ids.name as asset_code,
+        reporter.name as reporter_name,
+        assigned.name as assigned_to_name,
+
+        (
+            SELECT tr.status
+            FROM ticket_reassignments tr
+            WHERE tr.ticket_id = tickets.id
+            ORDER BY tr.created_at DESC, tr.id DESC
+            LIMIT 1
+        ) AS engineer_status
+    `).
 		Joins("LEFT JOIN projects ON projects.id = tickets.project_id").
 		Joins("LEFT JOIN locations ON locations.id = tickets.location_id").
 		Joins("LEFT JOIN parts ON parts.id = tickets.part_id").
