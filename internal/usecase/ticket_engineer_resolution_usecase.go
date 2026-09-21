@@ -20,29 +20,32 @@ const (
 )
 
 type TicketEngineerResolutionUsecase struct {
-	db                *gorm.DB
-	resolutionRepo    model.ITicketEngineerResolutionRepository
-	ticketRepo        model.ITicketRepository
-	userRepo          model.IUserRepository
-	ticketHistoryRepo model.ITicketHistoryRepository
-	hub               *ws.Hub
+	db                 *gorm.DB
+	resolutionRepo     model.ITicketEngineerResolutionRepository
+	ticketReassignRepo model.ITicketReassignmentRepository
+	ticketRepo         model.ITicketRepository
+	userRepo           model.IUserRepository
+	ticketHistoryRepo  model.ITicketHistoryRepository
+	hub                *ws.Hub
 }
 
 func NewTicketEngineerResolutionUsecase(
 	db *gorm.DB,
 	resolutionRepo model.ITicketEngineerResolutionRepository,
+	ticketReassignRepo model.ITicketReassignmentRepository,
 	ticketRepo model.ITicketRepository,
 	userRepo model.IUserRepository,
 	ticketHistoryRepo model.ITicketHistoryRepository,
 	hub *ws.Hub,
 ) *TicketEngineerResolutionUsecase {
 	return &TicketEngineerResolutionUsecase{
-		db:                db,
-		resolutionRepo:    resolutionRepo,
-		ticketRepo:        ticketRepo,
-		userRepo:          userRepo,
-		ticketHistoryRepo: ticketHistoryRepo,
-		hub:               hub,
+		db:                 db,
+		resolutionRepo:     resolutionRepo,
+		ticketReassignRepo: ticketReassignRepo,
+		ticketRepo:         ticketRepo,
+		userRepo:           userRepo,
+		ticketHistoryRepo:  ticketHistoryRepo,
+		hub:                hub,
 	}
 }
 
@@ -183,6 +186,52 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 			resolution.Attachments,
 			*attachment,
 		)
+	}
+
+	reassignments, err := u.ticketReassignRepo.FindByTicketID(
+		ctx,
+		ticketID,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"gagal mengambil reassignment ticket: %w",
+			err,
+		)
+	}
+
+	var latestPending *model.TicketReassignment
+
+	for _, reassignment := range reassignments {
+		if reassignment == nil {
+			continue
+		}
+
+		if reassignment.ToUserID != engineerID {
+			continue
+		}
+
+		if reassignment.Status != model.TicketReassignmentPending {
+			continue
+		}
+
+		if latestPending == nil ||
+			reassignment.CreatedAt.After(latestPending.CreatedAt) {
+			latestPending = reassignment
+		}
+	}
+
+	if latestPending != nil {
+		if err := u.ticketReassignRepo.UpdateStatus(
+			ctx,
+			latestPending.ID,
+			model.TicketReassignmentDone,
+		); err != nil {
+			return nil, fmt.Errorf(
+				"gagal mengubah status reassignment menjadi DONE: %w",
+				err,
+			)
+		}
 	}
 
 	history, err := u.ticketHistoryRepo.Create(

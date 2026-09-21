@@ -518,6 +518,7 @@ func (u *TicketUsecase) Reassign(ctx context.Context, ticketID int64, userID int
 		FromUserID: oldAssignedID,
 		ToUserID:   in.ToUserID,
 		Message:    in.Message,
+		Status:     model.TicketReassignmentPending,
 	}
 
 	if err := u.ticketReassignRepo.Create(

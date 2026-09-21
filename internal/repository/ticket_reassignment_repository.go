@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"time"
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 	"gorm.io/gorm"
@@ -36,4 +37,14 @@ func (r *TicketReassignmentRepo) FindByTicketID(ctx context.Context, ticketID in
 		Error
 
 	return data, err
+}
+
+func (r *TicketReassignmentRepo) UpdateStatus(ctx context.Context, id int64, status model.TicketReassignmentStatus) error {
+	return r.db.WithContext(ctx).
+		Model(&model.TicketReassignment{}).
+		Where("id = ?", id).
+		Updates(map[string]interface{}{
+			"status":     status,
+			"updated_at": time.Now(),
+		}).Error
 }
