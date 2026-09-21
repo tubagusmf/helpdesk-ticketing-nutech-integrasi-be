@@ -174,15 +174,28 @@ func (h *TicketHandler) FindAll(c echo.Context) error {
 func (h *TicketHandler) FindByID(c echo.Context) error {
 	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid id")
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid id",
+		)
 	}
 
-	ticket, err := h.ticketUsecase.FindByID(c.Request().Context(), id)
+	ticket, err := h.ticketUsecase.FindResponseByID(
+		c.Request().Context(),
+		id,
+	)
+
 	if err != nil {
-		return echo.NewHTTPError(http.StatusNotFound, err.Error())
+		return echo.NewHTTPError(
+			http.StatusNotFound,
+			err.Error(),
+		)
 	}
 
-	return c.JSON(http.StatusOK, ticket)
+	return c.JSON(
+		http.StatusOK,
+		ticket,
+	)
 }
 
 func (h *TicketHandler) UpdateStatus(c echo.Context) error {

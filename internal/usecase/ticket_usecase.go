@@ -57,8 +57,27 @@ func (u *TicketUsecase) FindAll(ctx context.Context, filter model.Ticket, search
 }
 
 func (u *TicketUsecase) FindByID(ctx context.Context, id int64) (*model.Ticket, error) {
+	log := logrus.WithFields(logrus.Fields{
+		"id": id,
+	})
+
 	ticket, err := u.ticketRepo.FindByID(ctx, id)
 	if err != nil {
+		log.Error("Failed to fetch ticket: ", err)
+		return nil, err
+	}
+
+	return ticket, nil
+}
+
+func (u *TicketUsecase) FindResponseByID(ctx context.Context, id int64) (*model.TicketResponse, error) {
+	log := logrus.WithFields(logrus.Fields{
+		"id": id,
+	})
+
+	ticket, err := u.ticketRepo.FindResponseByID(ctx, id)
+	if err != nil {
+		log.Error("Failed to fetch ticket response: ", err)
 		return nil, err
 	}
 

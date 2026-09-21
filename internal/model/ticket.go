@@ -100,6 +100,7 @@ type ITicketRepository interface {
 type ITicketUsecase interface {
 	FindAll(ctx context.Context, filter Ticket, search string, startDate string, endDate string, page int, limit int, role string, userID int64) ([]*TicketResponse, int64, error)
 	FindByID(ctx context.Context, id int64) (*Ticket, error)
+	FindResponseByID(ctx context.Context, id int64) (*TicketResponse, error)
 	Create(ctx context.Context, reporterID int64, in CreateTicketInput, attachmentPath *string) (*Ticket, bool, error)
 	UpdateStatus(ctx context.Context, id int64, userID int64, in UpdateTicketStatusInput) error
 	Delete(ctx context.Context, id int64) error
