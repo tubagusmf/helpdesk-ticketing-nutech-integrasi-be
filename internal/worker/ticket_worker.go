@@ -141,9 +141,18 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 
 	selected := available[0].User
 
+	nowAssign := time.Now()
+
 	result := w.db.Model(&model.Ticket{}).
 		Where("id = ? AND assigned_to_id IS NULL", ticket.ID).
-		Update("assigned_to_id", selected.ID)
+		Updates(map[string]interface{}{
+			"assigned_to_id":              selected.ID,
+			"staff_assigned_to_id":        selected.ID,
+			"staff_assigned_at":           nowAssign,
+			"staff_first_response_at":     nil,
+			"staff_response_time_seconds": nil,
+			"updated_at":                  nowAssign,
+		})
 
 	if result.Error != nil {
 		log.Println("failed assign ticket:", result.Error)
@@ -157,8 +166,6 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 		)
 		return
 	}
-
-	nowAssign := time.Now()
 
 	err := w.db.Model(&model.User{}).
 		Where("id = ?", selected.ID).
@@ -187,6 +194,11 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 		tickets.asset_id,
 		tickets.attachment,
 		tickets.assigned_to_id,
+
+		tickets.staff_assigned_to_id,
+        tickets.staff_assigned_at,
+        tickets.staff_first_response_at,
+        tickets.staff_response_time_seconds,
 
 		reporter.name as reporter_name,
 		assigned.name as assigned_to_name,

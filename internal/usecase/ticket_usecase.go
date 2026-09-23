@@ -19,6 +19,7 @@ type TicketUsecase struct {
 	ticketHistoryRepo  model.ITicketHistoryRepository
 	ticketReassignRepo model.ITicketReassignmentRepository
 	projectRepo        model.IProjectRepository
+	ticketCommentRepo  model.ITicketCommentRepository
 	db                 *gorm.DB
 	hub                *ws.Hub
 }
@@ -29,6 +30,7 @@ func NewTicketUsecase(
 	historyRepo model.ITicketHistoryRepository,
 	reassignRepo model.ITicketReassignmentRepository,
 	projectRepo model.IProjectRepository,
+	ticketCommentRepo model.ITicketCommentRepository,
 	hub *ws.Hub,
 ) model.ITicketUsecase {
 	return &TicketUsecase{
@@ -37,6 +39,7 @@ func NewTicketUsecase(
 		ticketHistoryRepo:  historyRepo,
 		ticketReassignRepo: reassignRepo,
 		projectRepo:        projectRepo,
+		ticketCommentRepo:  ticketCommentRepo,
 		hub:                hub,
 	}
 }
@@ -260,6 +263,14 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 	if err := u.ticketRepo.Update(ctx, *ticket); err != nil {
 		log.Error("failed update ticket:", err)
 		return err
+	}
+
+	if err := u.ticketRepo.RecordStaffFirstResponse(
+		ctx,
+		id,
+		userID,
+	); err != nil {
+		log.Error("failed record staff first response:", err)
 	}
 
 	oldStatusStr := string(oldStatus)
@@ -636,4 +647,123 @@ func (u *TicketUsecase) GetReassignmentByTicketID(ctx context.Context, ticketID 
 	}
 
 	return data, nil
+}
+
+func (u *TicketUsecase) ResponseTicket(ctx context.Context, ticketID int64, userID int64) error {
+	ticket, err := u.ticketRepo.FindByID(ctx, ticketID)
+	if err != nil {
+		return err
+	}
+
+	if ticket.StaffAssignedToID == nil {
+		return errors.New("ticket belum memiliki staff")
+	}
+
+	if *ticket.StaffAssignedToID != userID {
+		return errors.New("ticket bukan tanggung jawab staff ini")
+	}
+
+	if ticket.StaffFirstResponseAt != nil {
+		return errors.New("ticket sudah diresponse")
+	}
+
+	if err := u.ticketRepo.RecordStaffFirstResponse(
+		ctx,
+		ticketID,
+		userID,
+	); err != nil {
+		return err
+	}
+
+	const responseMessage = "Baik akan ditindak lanjut"
+
+	comment := model.TicketComment{
+		TicketID:              ticketID,
+		UserID:                userID,
+		Message:               responseMessage,
+		IsReadByUser:          false,
+		IsReadByStaff:         true,
+		IsReadByAdministrator: false,
+	}
+
+	result, err := u.ticketCommentRepo.Create(ctx, comment)
+	if err != nil {
+		return err
+	}
+
+	ws.BroadcastToRoles(
+		u.hub,
+		[]string{
+			"ADMINISTRATOR",
+			"STAFF",
+			"USER",
+		},
+		ws.Message{
+			Type: "NEW_COMMENT",
+			Data: map[string]interface{}{
+				"id":         result.ID,
+				"ticket_id":  result.TicketID,
+				"user_id":    result.UserID,
+				"user_name":  result.User.Name,
+				"message":    result.Message,
+				"created_at": result.CreatedAt,
+			},
+		},
+	)
+
+	message := responseMessage
+
+	history, err := u.ticketHistoryRepo.Create(
+		ctx,
+		model.TicketHistory{
+			TicketID: ticketID,
+			UserID:   userID,
+			Action:   "COMMENT",
+			NewValue: &message,
+		},
+	)
+
+	if err != nil {
+		return err
+	}
+
+	histories, err := u.ticketHistoryRepo.FindByTicketID(
+		ctx,
+		history.TicketID,
+	)
+
+	if err == nil && len(histories) > 0 {
+		latest := histories[0]
+
+		latest.Type = "COMMENT"
+		latest.Message = latest.NewValue
+
+		BroadcastTicketHistory(
+			u.hub,
+			latest,
+		)
+	}
+
+	ticketResp, err := u.ticketRepo.FindResponseByID(
+		ctx,
+		ticketID,
+	)
+	if err != nil {
+		return err
+	}
+
+	ws.BroadcastToRoles(
+		u.hub,
+		[]string{
+			"STAFF",
+			"ADMINISTRATOR",
+			"USER",
+		},
+		ws.Message{
+			Type: ws.EventTicketUpdated,
+			Data: ticketResp,
+		},
+	)
+
+	return nil
 }

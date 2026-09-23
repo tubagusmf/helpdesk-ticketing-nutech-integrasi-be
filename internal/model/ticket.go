@@ -41,36 +41,45 @@ type Ticket struct {
 	TotalPaused  int64          `json:"total_paused"`
 	Reporter     User           `json:"reporter"`
 
+	StaffAssignedToID        *int64     `json:"staff_assigned_to_id"`
+	StaffAssignedAt          *time.Time `json:"staff_assigned_at"`
+	StaffFirstResponseAt     *time.Time `json:"staff_first_response_at"`
+	StaffResponseTimeSeconds *int64     `json:"staff_response_time_seconds"`
+
 	CreatedAt time.Time  `json:"created_at"`
 	UpdatedAt time.Time  `json:"updated_at"`
 	DeletedAt *time.Time `json:"-"`
 }
 
 type TicketResponse struct {
-	ID                 int64                    `json:"id"`
-	TicketCode         string                   `json:"ticket_code"`
-	ProjectID          int64                    `json:"project_id"`
-	Priority           string                   `json:"priority"`
-	Status             string                   `json:"status"`
-	Description        string                   `json:"description"`
-	OnholdNotes        *string                  `json:"onhold_notes"`
-	Attachment         *string                  `json:"attachment_url"`
-	SolutionAttachment *string                  `json:"solution_attachment_url"`
-	ProjectName        string                   `json:"project_name"`
-	LocationName       string                   `json:"location_name"`
-	AssetCode          string                   `json:"asset_code"`
-	PartID             int64                    `json:"part_id"`
-	PartName           string                   `json:"part_name"`
-	AssetID            int64                    `json:"asset_id"`
-	ReporterName       string                   `json:"reporter_name"`
-	ReporterID         int64                    `json:"reporter_id"`
-	AssignedToID       *int64                   `json:"assigned_to_id"`
-	AssignedToName     string                   `json:"assigned_to_name"`
-	ReassignedAt       *time.Time               `json:"reassigned_at"`
-	CreatedAt          time.Time                `json:"created_at"`
-	DueAt              time.Time                `json:"due_at"`
-	UnreadCommentCount int64                    `json:"unread_comment_count"`
-	EngineerStatus     TicketReassignmentStatus `json:"engineer_status"`
+	ID                       int64                    `json:"id"`
+	TicketCode               string                   `json:"ticket_code"`
+	ProjectID                int64                    `json:"project_id"`
+	Priority                 string                   `json:"priority"`
+	Status                   string                   `json:"status"`
+	Description              string                   `json:"description"`
+	OnholdNotes              *string                  `json:"onhold_notes"`
+	Attachment               *string                  `json:"attachment_url"`
+	SolutionAttachment       *string                  `json:"solution_attachment_url"`
+	ProjectName              string                   `json:"project_name"`
+	LocationName             string                   `json:"location_name"`
+	AssetCode                string                   `json:"asset_code"`
+	PartID                   int64                    `json:"part_id"`
+	PartName                 string                   `json:"part_name"`
+	AssetID                  int64                    `json:"asset_id"`
+	ReporterName             string                   `json:"reporter_name"`
+	ReporterID               int64                    `json:"reporter_id"`
+	AssignedToID             *int64                   `json:"assigned_to_id"`
+	AssignedToName           string                   `json:"assigned_to_name"`
+	StaffAssignedToID        *int64                   `json:"staff_assigned_to_id"`
+	StaffAssignedAt          *time.Time               `json:"staff_assigned_at"`
+	StaffFirstResponseAt     *time.Time               `json:"staff_first_response_at"`
+	StaffResponseTimeSeconds *int64                   `json:"staff_response_time_seconds"`
+	ReassignedAt             *time.Time               `json:"reassigned_at"`
+	CreatedAt                time.Time                `json:"created_at"`
+	DueAt                    time.Time                `json:"due_at"`
+	UnreadCommentCount       int64                    `json:"unread_comment_count"`
+	EngineerStatus           TicketReassignmentStatus `json:"engineer_status"`
 }
 
 type CreateTicketInput struct {
@@ -96,6 +105,8 @@ type ITicketRepository interface {
 	Delete(ctx context.Context, id int64) error
 	CountByProjectToday(ctx context.Context, projectID int64) (int64, error)
 	FindResponseByID(ctx context.Context, id int64) (*TicketResponse, error)
+	SetStaffAssignment(ctx context.Context, ticketID int64, staffID int64) error
+	RecordStaffFirstResponse(ctx context.Context, ticketID int64, userID int64) error
 }
 
 type ITicketUsecase interface {
@@ -107,4 +118,5 @@ type ITicketUsecase interface {
 	Delete(ctx context.Context, id int64) error
 	Reassign(ctx context.Context, ticketID int64, userID int64, in ReassignTicketInput, attachments []TicketReassignmentAttachment) error
 	GetReassignmentByTicketID(ctx context.Context, ticketID int64) (*TicketReassignment, error)
+	ResponseTicket(ctx context.Context, ticketID int64, userID int64) error
 }

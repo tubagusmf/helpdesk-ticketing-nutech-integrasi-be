@@ -350,6 +350,11 @@ func (r *TicketRepo) FindAll(
 		tickets.attachment,
 		tickets.assigned_to_id,
 
+		tickets.staff_assigned_to_id,
+		tickets.staff_assigned_at,
+		tickets.staff_first_response_at,
+		tickets.staff_response_time_seconds,
+
 		ticket_resolutions.attachment_url AS solution_attachment,
 
 		projects.name AS project_name,
@@ -468,6 +473,10 @@ func (r *TicketRepo) FindResponseByID(ctx context.Context, id int64) (*model.Tic
         tickets.asset_id,
         tickets.attachment,
         tickets.assigned_to_id,
+		tickets.staff_assigned_to_id,
+		tickets.staff_assigned_at,
+		tickets.staff_first_response_at,
+		tickets.staff_response_time_seconds,
 
         projects.name as project_name,
         locations.name as location_name,
@@ -498,4 +507,99 @@ func (r *TicketRepo) FindResponseByID(ctx context.Context, id int64) (*model.Tic
 	}
 
 	return &ticket, nil
+}
+
+func (r *TicketRepo) SetStaffAssignment(ctx context.Context, ticketID int64, staffID int64) error {
+	var roleID int
+
+	err := r.db.WithContext(ctx).
+		Table("users").
+		Select("role_id").
+		Where("id = ?", staffID).
+		Scan(&roleID).Error
+
+	if err != nil {
+		return err
+	}
+
+	if roleID != 2 {
+		return fmt.Errorf("assigned user must be STAFF")
+	}
+
+	now := time.Now()
+
+	return r.db.WithContext(ctx).
+		Model(&model.Ticket{}).
+		Where("id = ?", ticketID).
+		Updates(map[string]interface{}{
+			"staff_assigned_to_id":        staffID,
+			"staff_assigned_at":           now,
+			"staff_first_response_at":     nil,
+			"staff_response_time_seconds": nil,
+			"updated_at":                  now,
+		}).Error
+}
+
+func (r *TicketRepo) RecordStaffFirstResponse(ctx context.Context, ticketID int64, userID int64) error {
+	var ticket model.Ticket
+
+	if err := r.db.WithContext(ctx).
+		Where("id = ?", ticketID).
+		First(&ticket).Error; err != nil {
+		return err
+	}
+
+	if ticket.StaffAssignedToID == nil ||
+		ticket.StaffAssignedAt == nil {
+		return nil
+	}
+
+	if ticket.StaffFirstResponseAt != nil {
+		return nil
+	}
+
+	var roleID int
+
+	if err := r.db.WithContext(ctx).
+		Table("users").
+		Select("role_id").
+		Where("id = ?", userID).
+		Scan(&roleID).Error; err != nil {
+		return err
+	}
+
+	if roleID != 2 {
+		return nil
+	}
+
+	if *ticket.StaffAssignedToID != userID {
+		return nil
+	}
+
+	now := time.Now()
+
+	responseSeconds := int64(
+		now.Sub(*ticket.StaffAssignedAt).Seconds(),
+	)
+
+	if responseSeconds < 0 {
+		responseSeconds = 0
+	}
+
+	result := r.db.WithContext(ctx).
+		Model(&model.Ticket{}).
+		Where("id = ?", ticketID).
+		Where("staff_assigned_to_id = ?", userID).
+		Where("staff_first_response_at IS NULL").
+		Updates(map[string]interface{}{
+			"staff_first_response_at":     now,
+			"staff_response_time_seconds": responseSeconds,
+			"updated_at":                  now,
+		})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	return nil
 }

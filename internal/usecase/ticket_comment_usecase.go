@@ -54,6 +54,15 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 		return nil, err
 	}
 
+	if err := u.ticketRepo.RecordStaffFirstResponse(
+		ctx,
+		comment.TicketID,
+		comment.UserID,
+	); err != nil {
+		log.Error("Failed record staff first response:", err)
+		return nil, err
+	}
+
 	ws.BroadcastToRoles(
 		u.wsHub,
 		[]string{"ADMINISTRATOR", "STAFF", "USER"},

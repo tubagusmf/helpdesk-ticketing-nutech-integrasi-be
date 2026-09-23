@@ -109,6 +109,14 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		return nil, err
 	}
 
+	if err := u.ticketRepo.RecordStaffFirstResponse(
+		ctx,
+		in.TicketID,
+		userID,
+	); err != nil {
+		return nil, err
+	}
+
 	helper.PublishNotificationEvent(
 		"ticket.resolution",
 		model.NotificationEvent{
@@ -211,6 +219,14 @@ func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int
 
 	if err := tx.Commit().Error; err != nil {
 		return err
+	}
+
+	if err := u.ticketRepo.RecordStaffFirstResponse(
+		ctx,
+		ticketID,
+		userID,
+	); err != nil {
+		logrus.Error("failed record staff first response:", err)
 	}
 
 	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, ticketID)

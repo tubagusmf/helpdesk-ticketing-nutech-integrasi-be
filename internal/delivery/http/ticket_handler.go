@@ -31,6 +31,7 @@ func NewTicketHandler(e *echo.Echo, ticketUsecase model.ITicketUsecase) {
 	group.GET("/export", handler.Export, AuthMiddleware)
 	group.POST("/reassign/:id", handler.ReassignTicket, AuthMiddleware)
 	group.GET("/:id/reassignment", handler.GetByTicketID, AuthMiddleware)
+	group.POST("/:id/response-ticket", handler.ResponseTicket, AuthMiddleware)
 }
 
 func (h *TicketHandler) Create(c echo.Context) error {
@@ -493,5 +494,56 @@ func (h *TicketHandler) GetByTicketID(c echo.Context) error {
 	return c.JSON(
 		http.StatusOK,
 		reassignment,
+	)
+}
+
+func (h *TicketHandler) ResponseTicket(c echo.Context) error {
+	ticketID, err := strconv.ParseInt(
+		c.Param("id"),
+		10,
+		64,
+	)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"ticket id tidak valid",
+		)
+	}
+
+	claimValue := c.Request().
+		Context().
+		Value(model.BearerAuthKey)
+
+	if claimValue == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+	}
+
+	claim, ok := claimValue.(*model.CustomClaims)
+	if !ok || claim == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+	}
+
+	if err := h.ticketUsecase.ResponseTicket(
+		c.Request().Context(),
+		ticketID,
+		claim.UserID,
+	); err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(
+		http.StatusOK,
+		map[string]interface{}{
+			"message": "Ticket berhasil diresponse",
+		},
 	)
 }
