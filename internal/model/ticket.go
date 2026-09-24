@@ -80,6 +80,7 @@ type TicketResponse struct {
 	DueAt                    time.Time                `json:"due_at"`
 	UnreadCommentCount       int64                    `json:"unread_comment_count"`
 	EngineerStatus           TicketReassignmentStatus `json:"engineer_status"`
+	EngineerResolutionAt     *time.Time               `json:"engineer_resolution_at"`
 }
 
 type CreateTicketInput struct {

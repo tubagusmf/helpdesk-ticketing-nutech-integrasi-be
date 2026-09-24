@@ -47,18 +47,7 @@ func (r *TicketRepo) FindByID(ctx context.Context, id int64) (*model.Ticket, err
 	return &ticket, nil
 }
 
-func (r *TicketRepo) FindAll(
-	ctx context.Context,
-	filter model.Ticket,
-	search string,
-	startDate string,
-	endDate string,
-	page int,
-	limit int,
-	role string,
-	userID int64,
-) ([]*model.TicketResponse, int64, error) {
-
+func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search string, startDate string, endDate string, page int, limit int, role string, userID int64) ([]*model.TicketResponse, int64, error) {
 	var tickets []*model.TicketResponse
 	var total int64
 
@@ -364,6 +353,12 @@ func (r *TicketRepo) FindAll(
 
 		reporter.name AS reporter_name,
 		assigned.name AS assigned_to_name,
+		
+		(
+			SELECT MAX(ter.created_at)
+			FROM ticket_engineer_resolutions ter
+			WHERE ter.ticket_id = tickets.id
+		) AS engineer_resolution_at,
 
 		` + reassignedSelect + `,
 		` + engineerStatusSelect + `,

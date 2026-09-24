@@ -274,6 +274,33 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		)
 	}
 
+	// Ambil data ticket terbaru
+	ticketResp, err := u.ticketRepo.FindResponseByID(
+		ctx,
+		ticketID,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf(
+			"gagal mengambil ticket response setelah engineer resolution: %w",
+			err,
+		)
+	}
+
+	// Broadcast khusus Engineer Resolution
+	ws.BroadcastToRoles(
+		u.hub,
+		[]string{
+			"STAFF",
+			"ADMINISTRATOR",
+			"USER",
+		},
+		ws.Message{
+			Type: ws.EventTicketEngineerResolution,
+			Data: ticketResp,
+		},
+	)
+
 	return resolution, nil
 }
 
