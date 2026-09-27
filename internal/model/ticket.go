@@ -81,6 +81,7 @@ type TicketResponse struct {
 	UnreadCommentCount       int64                    `json:"unread_comment_count"`
 	EngineerStatus           TicketReassignmentStatus `json:"engineer_status"`
 	EngineerResolutionAt     *time.Time               `json:"engineer_resolution_at"`
+	EngineerResolutionUnread bool                     `json:"engineer_resolution_unread"`
 }
 
 type CreateTicketInput struct {

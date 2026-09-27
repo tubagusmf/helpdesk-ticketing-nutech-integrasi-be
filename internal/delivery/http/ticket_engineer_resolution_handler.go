@@ -25,6 +25,7 @@ func NewTicketEngineerResolutionHandler(e *echo.Echo, u *usecase.TicketEngineerR
 
 	group.POST("/:id/engineer-resolution", handler.Create)
 	group.GET("/:id/engineer-resolution", handler.GetByTicketID)
+	group.PUT("/:id/engineer-resolution/read", handler.MarkAsRead)
 }
 
 func (h *TicketEngineerResolutionHandler) Create(c echo.Context) error {
@@ -130,4 +131,31 @@ func (h *TicketEngineerResolutionHandler) GetByTicketID(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, resolution)
+}
+
+func (h *TicketEngineerResolutionHandler) MarkAsRead(c echo.Context) error {
+	ticketID, err := strconv.ParseInt(
+		c.Param("id"),
+		10,
+		64,
+	)
+
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]interface{}{
+			"message": "ticket id tidak valid",
+		})
+	}
+
+	if err := h.usecase.MarkAsRead(
+		c.Request().Context(),
+		ticketID,
+	); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]interface{}{
+			"message": err.Error(),
+		})
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "Engineer resolution berhasil ditandai sudah dibaca",
+	})
 }

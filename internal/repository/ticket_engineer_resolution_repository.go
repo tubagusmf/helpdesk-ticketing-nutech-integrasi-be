@@ -42,3 +42,11 @@ func (r *TicketEngineerResolutionRepo) FindByTicketID(ctx context.Context, ticke
 
 	return &resolution, nil
 }
+
+func (r *TicketEngineerResolutionRepo) MarkAsRead(ctx context.Context, ticketID int64) error {
+	return r.db.WithContext(ctx).
+		Model(&model.TicketEngineerResolution{}).
+		Where("ticket_id = ?", ticketID).
+		Update("is_read", true).
+		Error
+}

@@ -105,6 +105,7 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		TicketID:   ticketID,
 		EngineerID: engineerID,
 		Solution:   solution,
+		IsRead:     false,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
@@ -274,7 +275,6 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		)
 	}
 
-	// Ambil data ticket terbaru
 	ticketResp, err := u.ticketRepo.FindResponseByID(
 		ctx,
 		ticketID,
@@ -287,7 +287,6 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		)
 	}
 
-	// Broadcast khusus Engineer Resolution
 	ws.BroadcastToRoles(
 		u.hub,
 		[]string{
@@ -306,6 +305,14 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 
 func (u *TicketEngineerResolutionUsecase) GetByTicketID(ctx context.Context, ticketID int64) (*model.TicketEngineerResolution, error) {
 	return u.resolutionRepo.FindByTicketID(
+		ctx,
+		ticketID,
+	)
+}
+
+func (u *TicketEngineerResolutionUsecase) MarkAsRead(ctx context.Context, ticketID int64,
+) error {
+	return u.resolutionRepo.MarkAsRead(
 		ctx,
 		ticketID,
 	)

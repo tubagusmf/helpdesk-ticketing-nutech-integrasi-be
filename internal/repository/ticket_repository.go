@@ -360,6 +360,18 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 			WHERE ter.ticket_id = tickets.id
 		) AS engineer_resolution_at,
 
+		(
+			SELECT
+				CASE
+					WHEN ter.is_read = false THEN true
+					ELSE false
+				END
+			FROM ticket_engineer_resolutions ter
+			WHERE ter.ticket_id = tickets.id
+			ORDER BY ter.created_at DESC, ter.id DESC
+			LIMIT 1
+		) AS engineer_resolution_unread,
+
 		` + reassignedSelect + `,
 		` + engineerStatusSelect + `,
 		` + unreadQuery

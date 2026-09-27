@@ -10,6 +10,7 @@ type TicketEngineerResolution struct {
 	TicketID    int64                                `json:"ticket_id"`
 	EngineerID  int64                                `json:"engineer_id"`
 	Solution    string                               `json:"solution"`
+	IsRead      bool                                 `json:"is_read" gorm:"default:false"`
 	CreatedAt   time.Time                            `json:"created_at"`
 	UpdatedAt   time.Time                            `json:"updated_at"`
 	Attachments []TicketEngineerResolutionAttachment `json:"attachments" gorm:"foreignKey:ResolutionID;references:ID"`
@@ -32,4 +33,5 @@ type ITicketEngineerResolutionRepository interface {
 	Create(ctx context.Context, resolution *TicketEngineerResolution) error
 	CreateAttachment(ctx context.Context, attachment *TicketEngineerResolutionAttachment) error
 	FindByTicketID(ctx context.Context, ticketID int64) (*TicketEngineerResolution, error)
+	MarkAsRead(ctx context.Context, ticketID int64) error
 }
