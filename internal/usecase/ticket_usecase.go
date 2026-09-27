@@ -9,6 +9,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 	"gorm.io/gorm"
@@ -612,6 +613,25 @@ func (u *TicketUsecase) Reassign(ctx context.Context, ticketID int64, userID int
 			Data: ticketResp,
 		},
 	)
+
+	err = helper.PublishNotificationEvent(
+		"ticket.reassigned",
+		model.NotificationEvent{
+			EventType:     "TICKET_REASSIGNED",
+			UserID:        in.ToUserID,
+			ActorID:       userID,
+			TicketID:      ticketID,
+			TicketCode:    ticket.TicketCode,
+			ReferenceType: "TICKET",
+			ReferenceID:   ticketID,
+			Title:         "Tiket Di-reassign",
+			Message:       "No Tiket: " + ticket.TicketCode + " | Tiket telah di-reassign kepada Anda.",
+		},
+	)
+
+	if err != nil {
+		log.Error("failed publish reassignment notification:", err)
+	}
 
 	return nil
 }

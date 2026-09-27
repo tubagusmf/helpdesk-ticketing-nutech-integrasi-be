@@ -300,6 +300,53 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		},
 	)
 
+	if ticket.StaffAssignedToID != nil {
+		err = helper.PublishNotificationEvent(
+			"ticket.engineer_resolution",
+			model.NotificationEvent{
+				EventType:     "TICKET_ENGINEER_RESOLUTION",
+				UserID:        *ticket.StaffAssignedToID,
+				ActorID:       engineerID,
+				TicketID:      ticketID,
+				TicketCode:    ticket.TicketCode,
+				ReferenceType: "RESOLUTION",
+				ReferenceID:   resolution.ID,
+				Title:         "Engineer Memberikan Resolution",
+				Message: "No Tiket: " + ticket.TicketCode +
+					" | Solution: " + solution,
+			},
+		)
+
+		if err != nil {
+			fmt.Println("failed publish staff resolution notification:", err)
+		}
+	}
+
+	if ticket.ReporterID != 0 &&
+		(ticket.StaffAssignedToID == nil ||
+			ticket.ReporterID != *ticket.StaffAssignedToID) {
+
+		err = helper.PublishNotificationEvent(
+			"ticket.engineer_resolution",
+			model.NotificationEvent{
+				EventType:     "TICKET_ENGINEER_RESOLUTION",
+				UserID:        ticket.ReporterID,
+				ActorID:       engineerID,
+				TicketID:      ticketID,
+				TicketCode:    ticket.TicketCode,
+				ReferenceType: "RESOLUTION",
+				ReferenceID:   resolution.ID,
+				Title:         "Engineer Memberikan Resolution",
+				Message: "No Tiket: " + ticket.TicketCode +
+					" | Solution: " + solution,
+			},
+		)
+
+		if err != nil {
+			fmt.Println("failed publish reporter resolution notification:", err)
+		}
+	}
+
 	return resolution, nil
 }
 

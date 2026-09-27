@@ -9,12 +9,14 @@ type NotificationType string
 type NotificationReferenceType string
 
 const (
-	NotificationTicketCreated  NotificationType = "TICKET_CREATED"
-	NotificationTicketAssigned NotificationType = "TICKET_ASSIGNED"
-	NotificationTicketUpdated  NotificationType = "TICKET_UPDATED"
-	NotificationTicketComment  NotificationType = "TICKET_COMMENT"
-	NotificationTicketResolved NotificationType = "TICKET_RESOLVED"
-	NotificationTicketClosed   NotificationType = "TICKET_CLOSED"
+	NotificationTicketCreated            NotificationType = "TICKET_CREATED"
+	NotificationTicketAssigned           NotificationType = "TICKET_ASSIGNED"
+	NotificationTicketUpdated            NotificationType = "TICKET_UPDATED"
+	NotificationTicketComment            NotificationType = "TICKET_COMMENT"
+	NotificationTicketResolved           NotificationType = "TICKET_RESOLVED"
+	NotificationTicketClosed             NotificationType = "TICKET_CLOSED"
+	NotificationTicketReassigned         NotificationType = "TICKET_REASSIGNED"
+	NotificationTicketEngineerResolution NotificationType = "TICKET_ENGINEER_RESOLUTION"
 )
 
 const (
