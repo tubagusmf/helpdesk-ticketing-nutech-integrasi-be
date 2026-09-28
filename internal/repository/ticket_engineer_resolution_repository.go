@@ -27,14 +27,14 @@ func (r *TicketEngineerResolutionRepo) CreateAttachment(ctx context.Context, att
 	return r.db.WithContext(ctx).Create(attachment).Error
 }
 
-func (r *TicketEngineerResolutionRepo) FindByTicketID(ctx context.Context, ticketID int64) (*model.TicketEngineerResolution, error) {
-	var resolution model.TicketEngineerResolution
+func (r *TicketEngineerResolutionRepo) FindByTicketID(ctx context.Context, ticketID int64) (*[]model.TicketEngineerResolution, error) {
+	var resolution []model.TicketEngineerResolution
 
 	err := r.db.WithContext(ctx).
 		Preload("Attachments").
 		Where("ticket_id = ?", ticketID).
 		Order("created_at DESC").
-		First(&resolution).
+		Find(&resolution).
 		Error
 
 	if err != nil {

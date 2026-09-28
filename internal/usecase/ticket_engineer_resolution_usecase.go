@@ -350,7 +350,7 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 	return resolution, nil
 }
 
-func (u *TicketEngineerResolutionUsecase) GetByTicketID(ctx context.Context, ticketID int64) (*model.TicketEngineerResolution, error) {
+func (u *TicketEngineerResolutionUsecase) GetByTicketID(ctx context.Context, ticketID int64) (*[]model.TicketEngineerResolution, error) {
 	return u.resolutionRepo.FindByTicketID(
 		ctx,
 		ticketID,

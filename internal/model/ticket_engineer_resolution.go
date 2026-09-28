@@ -32,6 +32,6 @@ type CreateEngineerResolutionInput struct {
 type ITicketEngineerResolutionRepository interface {
 	Create(ctx context.Context, resolution *TicketEngineerResolution) error
 	CreateAttachment(ctx context.Context, attachment *TicketEngineerResolutionAttachment) error
-	FindByTicketID(ctx context.Context, ticketID int64) (*TicketEngineerResolution, error)
+	FindByTicketID(ctx context.Context, ticketID int64) (*[]TicketEngineerResolution, error)
 	MarkAsRead(ctx context.Context, ticketID int64) error
 }
