@@ -23,6 +23,7 @@ func NewHub() *Hub {
 			"STAFF":         {},
 			"USER":          {},
 			"EXECUTIVE":     {},
+			"ENGINEER":      {},
 		},
 
 		Register:        make(chan *Client),

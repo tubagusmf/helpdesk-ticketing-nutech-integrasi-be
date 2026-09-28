@@ -65,12 +65,13 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 
 	ws.BroadcastToRoles(
 		u.wsHub,
-		[]string{"ADMINISTRATOR", "STAFF", "USER"},
+		[]string{"ADMINISTRATOR", "STAFF", "USER", "EXECUTIVE", "ENGINEER"},
 		websocket.Message{
 			Type: "NEW_COMMENT",
 			Data: map[string]interface{}{
 				"id":         result.ID,
 				"ticket_id":  result.TicketID,
+				"user_id":    result.UserID,
 				"user_name":  result.User.Name,
 				"message":    result.Message,
 				"created_at": result.CreatedAt,

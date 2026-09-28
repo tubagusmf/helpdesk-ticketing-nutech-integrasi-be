@@ -33,6 +33,7 @@ func (r *TicketEngineerResolutionRepo) FindByTicketID(ctx context.Context, ticke
 	err := r.db.WithContext(ctx).
 		Preload("Attachments").
 		Where("ticket_id = ?", ticketID).
+		Order("created_at DESC").
 		First(&resolution).
 		Error
 
