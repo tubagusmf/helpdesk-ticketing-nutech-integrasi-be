@@ -142,6 +142,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 		AllowOrigins: []string{
 			"http://localhost:5173",
 			"http://localhost:3001",
+			"https://helpdesk-ticketing-nutech-integrasi-27na456j5.vercel.app",
 		},
 		AllowMethods: []string{
 			echo.GET,
