@@ -142,6 +142,10 @@ func httpServer(cmd *cobra.Command, args []string) {
 		AllowOrigins: []string{
 			"http://localhost:5173",
 			"http://localhost:3001",
+			// Vercel production domain
+			"https://helpdesk-ticketing-nutech-integrasi.vercel.app",
+
+			// Vercel deployment domain
 			"https://helpdesk-ticketing-nutech-integrasi-27na456j5.vercel.app",
 		},
 		AllowMethods: []string{
@@ -149,6 +153,8 @@ func httpServer(cmd *cobra.Command, args []string) {
 			echo.POST,
 			echo.PUT,
 			echo.DELETE,
+			echo.PATCH,
+			echo.OPTIONS,
 		},
 		AllowHeaders: []string{
 			echo.HeaderOrigin,
