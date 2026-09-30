@@ -147,6 +147,11 @@ func httpServer(cmd *cobra.Command, args []string) {
 
 			// Vercel deployment domain
 			"https://helpdesk-ticketing-nutech-integrasi-27na456j5.vercel.app",
+
+			// Capacitor Android WebView
+			"http://localhost",
+			"https://localhost",
+			"capacitor://localhost",
 		},
 		AllowMethods: []string{
 			echo.GET,
