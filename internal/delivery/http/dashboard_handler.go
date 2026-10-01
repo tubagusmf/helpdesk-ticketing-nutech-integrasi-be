@@ -31,6 +31,13 @@ func NewDashboardHandler(e *echo.Echo, u *usecase.DashboardUsecase) {
 	group.GET("/priority", handler.GetPriority)
 	group.GET("/volume-project", handler.GetVolume)
 	group.GET("/projects", handler.GetProjects)
+	group.GET("/top-projects", handler.GetTopProjects)
+	group.GET("/top-locations", handler.GetTopLocations)
+	group.GET("/incident-trend", handler.GetIncidentTrend)
+	group.GET("/open-tickets", handler.GetOpenTickets)
+	group.GET("/onhold-tickets", handler.GetOnHoldTickets)
+	group.GET("/project-summary", handler.GetProjectSummary)
+	group.GET("/staff-summary", handler.GetStaffSummary)
 }
 
 func (h *DashboardHandler) buildFilter(c echo.Context) (model.DashboardFilter, error) {
@@ -162,6 +169,153 @@ func (h *DashboardHandler) GetProjects(c echo.Context) error {
 	}
 
 	data, err := h.usecase.GetProjects(
+		c.Request().Context(),
+		filter,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetTopProjects(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetTopProjects(
+		c.Request().Context(),
+		filter,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetTopLocations(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetTopLocations(
+		c.Request().Context(),
+		filter,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetIncidentTrend(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetIncidentTrend(
+		c.Request().Context(),
+		filter,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetOpenTickets(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetOpenTickets(
+		c.Request().Context(),
+		filter,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetOnHoldTickets(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetOnHoldTickets(
+		c.Request().Context(),
+		filter,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetProjectSummary(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetProjectSummary(
+		c.Request().Context(),
+		filter,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetStaffSummary(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetStaffSummary(
 		c.Request().Context(),
 		filter,
 	)
