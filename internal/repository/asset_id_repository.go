@@ -60,6 +60,7 @@ func (r *AssetIDRepo) FindAll(ctx context.Context, filter model.AssetID, page in
 
 	if filter.Name != "" {
 		search := "%" + filter.Name + "%"
+
 		query = query.Where(`
 			asset_ids.name ILIKE ?
 			OR parts.name ILIKE ?
@@ -76,9 +77,9 @@ func (r *AssetIDRepo) FindAll(ctx context.Context, filter model.AssetID, page in
 	}
 
 	if err := query.
+		Order("asset_ids.created_at DESC, asset_ids.id DESC").
 		Limit(limit).
 		Offset((page - 1) * limit).
-		Order("asset_ids.id ASC").
 		Find(&assets).Error; err != nil {
 		return nil, 0, err
 	}

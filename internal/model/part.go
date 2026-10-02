@@ -28,6 +28,7 @@ type UpdatePartInput struct {
 type IPartRepository interface {
 	FindAll(ctx context.Context, part Part, page int, limit int) ([]*Part, int64, error)
 	FindByID(ctx context.Context, id int64) (*Part, error)
+	FindByProjectID(ctx context.Context, projectID int64) ([]*Part, error)
 	Create(ctx context.Context, part Part) (*Part, error)
 	Update(ctx context.Context, part Part) error
 	Delete(ctx context.Context, id int64) error
@@ -36,6 +37,7 @@ type IPartRepository interface {
 type IPartUsecase interface {
 	FindAll(ctx context.Context, part Part, page int, limit int) ([]*Part, int64, error)
 	FindByID(ctx context.Context, id int64) (*Part, error)
+	FindByProjectID(ctx context.Context, projectID int64) ([]*Part, error)
 	Create(ctx context.Context, in PartInput) (*Part, error)
 	Update(ctx context.Context, id int64, in UpdatePartInput) error
 	Delete(ctx context.Context, id int64) error

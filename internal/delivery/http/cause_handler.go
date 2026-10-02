@@ -24,6 +24,7 @@ func NewCauseHandler(e *echo.Echo, causeUsecase model.ICauseUsecase) {
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
 	group.PUT("/update/:id", handler.Update, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
+	group.GET("/project/:project_id", handler.FindByProjectID, AuthMiddleware)
 }
 
 func (h *CauseHandler) Create(c echo.Context) error {
@@ -126,5 +127,31 @@ func (h *CauseHandler) Delete(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "cause deleted successfully",
+	})
+}
+
+func (h *CauseHandler) FindByProjectID(c echo.Context) error {
+	projectID, err := strconv.ParseInt(c.Param("project_id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid project_id",
+		)
+	}
+
+	causes, err := h.causeUsecase.FindByProjectID(
+		c.Request().Context(),
+		projectID,
+	)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "causes fetched successfully",
+		"data":    causes,
 	})
 }

@@ -64,6 +64,20 @@ func (u *CauseUsecase) FindByID(ctx context.Context, id int64) (*model.Cause, er
 	return cause, nil
 }
 
+func (u *CauseUsecase) FindByProjectID(ctx context.Context, projectID int64) ([]*model.Cause, error) {
+	log := logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+	})
+
+	causes, err := u.causeRepo.FindByProjectID(ctx, projectID)
+	if err != nil {
+		log.Error("Failed to fetch causes by project ID: ", err)
+		return nil, err
+	}
+
+	return causes, nil
+}
+
 func (u *CauseUsecase) Update(ctx context.Context, id int64, in model.UpdateCauseInput) error {
 	log := logrus.WithField("id", id)
 

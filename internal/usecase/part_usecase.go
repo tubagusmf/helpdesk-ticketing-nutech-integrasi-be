@@ -62,6 +62,20 @@ func (u *PartUsecase) FindByID(ctx context.Context, id int64) (*model.Part, erro
 	return part, nil
 }
 
+func (u *PartUsecase) FindByProjectID(ctx context.Context, projectID int64) ([]*model.Part, error) {
+	log := logrus.WithFields(logrus.Fields{
+		"project_id": projectID,
+	})
+
+	parts, err := u.partRepo.FindByProjectID(ctx, projectID)
+	if err != nil {
+		log.Error("Failed to fetch parts by project ID: ", err)
+		return nil, err
+	}
+
+	return parts, nil
+}
+
 func (u *PartUsecase) Update(ctx context.Context, id int64, in model.UpdatePartInput) error {
 	log := logrus.WithFields(logrus.Fields{"id": id})
 

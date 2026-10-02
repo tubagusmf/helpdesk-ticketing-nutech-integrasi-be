@@ -74,11 +74,32 @@ func (r *CauseRepo) FindAll(ctx context.Context, filter model.Cause, page int, l
 	if err := query.
 		Limit(limit).
 		Offset((page - 1) * limit).
+		Order("causes.created_at DESC, causes.id DESC").
 		Find(&causes).Error; err != nil {
 		return nil, 0, err
 	}
 
 	return causes, total, nil
+}
+
+func (r *CauseRepo) FindByProjectID(ctx context.Context, projectID int64) ([]*model.Cause, error) {
+	var causes []*model.Cause
+
+	err := r.db.WithContext(ctx).
+		Model(&model.Cause{}).
+		Joins("LEFT JOIN parts ON parts.id = causes.part_id").
+		Where("causes.deleted_at IS NULL").
+		Where("parts.project_id = ?", projectID).
+		Preload("Part").
+		Preload("Part.Project").
+		Order("causes.name ASC").
+		Find(&causes).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return causes, nil
 }
 
 func (r *CauseRepo) Update(ctx context.Context, cause model.Cause) error {

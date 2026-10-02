@@ -24,6 +24,7 @@ func NewPartHandler(e *echo.Echo, partUsecase model.IPartUsecase) {
 	group.GET("/:id", handler.FindByID, AuthMiddleware)
 	group.PUT("/update/:id", handler.Update, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
+	group.GET("/project/:project_id", handler.FindByProjectID, AuthMiddleware)
 }
 
 func (h *PartHandler) Create(c echo.Context) error {
@@ -54,15 +55,30 @@ func (h *PartHandler) FindAll(c echo.Context) error {
 		if err != nil {
 			return echo.NewHTTPError(http.StatusBadRequest, "invalid project_id")
 		}
+
 		filter.ProjectID = id
 	}
 
 	page, _ := strconv.Atoi(c.QueryParam("page"))
+
 	if page == 0 {
 		page = 1
 	}
 
 	limit := 10
+
+	if limitParam := c.QueryParam("limit"); limitParam != "" {
+		parsedLimit, err := strconv.Atoi(limitParam)
+		if err != nil || parsedLimit <= 0 {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid limit")
+		}
+
+		if parsedLimit > 1000 {
+			parsedLimit = 1000
+		}
+
+		limit = parsedLimit
+	}
 
 	parts, total, err := h.partUsecase.FindAll(
 		c.Request().Context(),
@@ -70,6 +86,7 @@ func (h *PartHandler) FindAll(c echo.Context) error {
 		page,
 		limit,
 	)
+
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 	}
@@ -134,5 +151,31 @@ func (h *PartHandler) Delete(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "part deleted successfully",
+	})
+}
+
+func (h *PartHandler) FindByProjectID(c echo.Context) error {
+	projectID, err := strconv.ParseInt(c.Param("project_id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid project_id",
+		)
+	}
+
+	parts, err := h.partUsecase.FindByProjectID(
+		c.Request().Context(),
+		projectID,
+	)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "parts fetched successfully",
+		"data":    parts,
 	})
 }

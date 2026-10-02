@@ -60,16 +60,16 @@ func (r *PartRepo) FindAll(ctx context.Context, filter model.Part, page int, lim
 
 	if filter.Name != "" {
 		query = query.Where(`
-				parts.name ILIKE ? 
-				OR projects.name ILIKE ?
-			`, "%"+filter.Name+"%", "%"+filter.Name+"%")
+			parts.name ILIKE ?
+			OR projects.name ILIKE ?
+		`, "%"+filter.Name+"%", "%"+filter.Name+"%")
 	}
 
 	if filter.ProjectID != 0 {
-		query = query.Where("project_id = ?", filter.ProjectID)
+		query = query.Where("parts.project_id = ?", filter.ProjectID)
 	}
 
-	if err := query.Find(&parts).Error; err != nil {
+	if err := query.Count(&total).Error; err != nil {
 		return nil, 0, err
 	}
 
@@ -82,6 +82,22 @@ func (r *PartRepo) FindAll(ctx context.Context, filter model.Part, page int, lim
 	}
 
 	return parts, total, nil
+}
+
+func (r *PartRepo) FindByProjectID(ctx context.Context, projectID int64) ([]*model.Part, error) {
+	var parts []*model.Part
+
+	err := r.db.WithContext(ctx).
+		Where("project_id = ?", projectID).
+		Where("deleted_at IS NULL").
+		Order("name ASC").
+		Find(&parts).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return parts, nil
 }
 
 func (r *PartRepo) Update(ctx context.Context, part model.Part) error {

@@ -29,6 +29,7 @@ type ICauseRepository interface {
 	Create(ctx context.Context, cause Cause) (*Cause, error)
 	FindAll(ctx context.Context, cause Cause, page int, limit int) ([]*Cause, int64, error)
 	FindByID(ctx context.Context, id int64) (*Cause, error)
+	FindByProjectID(ctx context.Context, projectID int64) ([]*Cause, error)
 	Update(ctx context.Context, cause Cause) error
 	Delete(ctx context.Context, id int64) error
 }
@@ -37,6 +38,7 @@ type ICauseUsecase interface {
 	Create(ctx context.Context, in CreateCauseInput) (*Cause, error)
 	FindAll(ctx context.Context, cause Cause, page int, limit int) ([]*Cause, int64, error)
 	FindByID(ctx context.Context, id int64) (*Cause, error)
+	FindByProjectID(ctx context.Context, projectID int64) ([]*Cause, error)
 	Update(ctx context.Context, id int64, in UpdateCauseInput) error
 	Delete(ctx context.Context, id int64) error
 }

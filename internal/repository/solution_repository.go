@@ -74,6 +74,7 @@ func (r *SolutionRepo) FindAll(ctx context.Context, filter model.Solution, page 
 	}
 
 	if err := query.
+		Order("solutions.created_at DESC, solutions.id DESC").
 		Limit(limit).
 		Offset((page - 1) * limit).
 		Find(&solutions).Error; err != nil {
