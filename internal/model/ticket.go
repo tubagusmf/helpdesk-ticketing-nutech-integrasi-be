@@ -75,6 +75,8 @@ type TicketResponse struct {
 	StaffAssignedAt          *time.Time               `json:"staff_assigned_at"`
 	StaffFirstResponseAt     *time.Time               `json:"staff_first_response_at"`
 	StaffResponseTimeSeconds *int64                   `json:"staff_response_time_seconds"`
+	CauseName                string                   `json:"cause_name"`
+	SolutionName             string                   `json:"solution_name"`
 	ReassignedAt             *time.Time               `json:"reassigned_at"`
 	CreatedAt                time.Time                `json:"created_at"`
 	DueAt                    time.Time                `json:"due_at"`
@@ -82,6 +84,49 @@ type TicketResponse struct {
 	EngineerStatus           TicketReassignmentStatus `json:"engineer_status"`
 	EngineerResolutionAt     *time.Time               `json:"engineer_resolution_at"`
 	EngineerResolutionUnread bool                     `json:"engineer_resolution_unread"`
+}
+
+type CustomTicketExportRequest struct {
+	Columns      []string       `json:"columns" validate:"required,min=1"`
+	ProjectID    int64          `json:"project_id"`
+	AssignedToID int64          `json:"assigned_to_id"`
+	ReporterID   int64          `json:"reporter_id"`
+	TicketCode   string         `json:"ticket_code"`
+	Priority     TicketPriority `json:"priority"`
+	Status       TicketStatus   `json:"status"`
+	Search       string         `json:"search"`
+	StartDate    string         `json:"start_date"`
+	EndDate      string         `json:"end_date"`
+}
+
+type TicketExportRow struct {
+	ID                       int64      `json:"id"`
+	TicketCode               string     `json:"ticket_code"`
+	ProjectName              string     `json:"project_name"`
+	LocationName             string     `json:"location_name"`
+	PartName                 string     `json:"part_name"`
+	AssetCode                string     `json:"asset_code"`
+	ReporterName             string     `json:"reporter_name"`
+	AssignedToName           string     `json:"assigned_to_name"`
+	StaffAssignedToName      string     `json:"staff_assigned_to_name"`
+	Priority                 string     `json:"priority"`
+	Status                   string     `json:"status"`
+	Description              string     `json:"description"`
+	OnholdNotes              *string    `json:"onhold_notes"`
+	TicketAttachmentURL      *string    `json:"ticket_attachment_url"`
+	ResolutionCause          *string    `json:"resolution_cause"`
+	ResolutionSolution       *string    `json:"resolution_solution"`
+	ResolutionNotes          *string    `json:"resolution_notes"`
+	ResolutionCompletionAt   *time.Time `json:"resolution_completion_at"`
+	ResolutionAttachmentURL  *string    `json:"resolution_attachment_url"`
+	CreatedAt                time.Time  `json:"created_at"`
+	UpdatedAt                time.Time  `json:"updated_at"`
+	DueAt                    time.Time  `json:"due_at"`
+	ResolvedAt               *time.Time `json:"resolved_at"`
+	StaffAssignedAt          *time.Time `json:"staff_assigned_at"`
+	StaffFirstResponseAt     *time.Time `json:"staff_first_response_at"`
+	StaffResponseTimeSeconds *int64     `json:"staff_response_time_seconds"`
+	EngineerResolutionAt     *time.Time `json:"engineer_resolution_at"`
 }
 
 type CreateTicketInput struct {
@@ -109,6 +154,8 @@ type ITicketRepository interface {
 	FindResponseByID(ctx context.Context, id int64) (*TicketResponse, error)
 	SetStaffAssignment(ctx context.Context, ticketID int64, staffID int64) error
 	RecordStaffFirstResponse(ctx context.Context, ticketID int64, userID int64) error
+	FindForCustomExport(ctx context.Context, filter Ticket, search string, startDate string,
+		endDate string, role string, userID int64) ([]*TicketExportRow, error)
 }
 
 type ITicketUsecase interface {
@@ -121,4 +168,5 @@ type ITicketUsecase interface {
 	Reassign(ctx context.Context, ticketID int64, userID int64, in ReassignTicketInput, attachments []TicketReassignmentAttachment) error
 	GetReassignmentByTicketID(ctx context.Context, ticketID int64) (*TicketReassignment, error)
 	ResponseTicket(ctx context.Context, ticketID int64, userID int64) error
+	ExportCustom(ctx context.Context, req CustomTicketExportRequest, role string, userID int64) ([]*TicketExportRow, error)
 }

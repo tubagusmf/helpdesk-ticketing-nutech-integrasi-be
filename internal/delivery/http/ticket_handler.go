@@ -32,6 +32,7 @@ func NewTicketHandler(e *echo.Echo, ticketUsecase model.ITicketUsecase) {
 	group.POST("/reassign/:id", handler.ReassignTicket, AuthMiddleware)
 	group.GET("/:id/reassignment", handler.GetByTicketID, AuthMiddleware)
 	group.POST("/:id/response-ticket", handler.ResponseTicket, AuthMiddleware)
+	group.POST("/export-custom", handler.ExportCustom, AuthMiddleware)
 }
 
 func (h *TicketHandler) Create(c echo.Context) error {
@@ -545,5 +546,108 @@ func (h *TicketHandler) ResponseTicket(c echo.Context) error {
 		map[string]interface{}{
 			"message": "Ticket berhasil diresponse",
 		},
+	)
+}
+
+func (h *TicketHandler) ExportCustom(c echo.Context) error {
+	claimValue := c.Request().
+		Context().
+		Value(model.BearerAuthKey)
+
+	if claimValue == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+	}
+
+	claims := claimValue.(*model.CustomClaims)
+
+	switch claims.Role {
+	case "STAFF", "ADMINISTRATOR", "EXECUTIVE":
+	default:
+		return echo.NewHTTPError(
+			http.StatusForbidden,
+			"role is not allowed to export custom ticket",
+		)
+	}
+
+	var req model.CustomTicketExportRequest
+
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid request",
+		)
+	}
+
+	if len(req.Columns) == 0 {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"please select at least one column",
+		)
+	}
+
+	if err := helper.ValidateCustomTicketExportColumns(
+		req.Columns,
+	); err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			err.Error(),
+		)
+	}
+
+	tickets, err := h.ticketUsecase.ExportCustom(
+		c.Request().Context(),
+		req,
+		claims.Role,
+		claims.UserID,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	file, err := helper.GenerateCustomExcelTickets(
+		tickets,
+		req.Columns,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	fileName := fmt.Sprintf(
+		"ticket_custom_export_%s.xlsx",
+		time.Now().Format("2006-01-02_150405"),
+	)
+
+	c.Response().
+		Header().
+		Set(
+			echo.HeaderContentDisposition,
+			fmt.Sprintf(
+				`attachment; filename="%s"`,
+				fileName,
+			),
+		)
+
+	c.Response().
+		Header().
+		Set(
+			echo.HeaderContentType,
+			"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		)
+
+	return c.Blob(
+		http.StatusOK,
+		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+		file.Bytes(),
 	)
 }

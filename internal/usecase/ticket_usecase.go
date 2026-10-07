@@ -787,3 +787,44 @@ func (u *TicketUsecase) ResponseTicket(ctx context.Context, ticketID int64, user
 
 	return nil
 }
+
+func (u *TicketUsecase) ExportCustom(ctx context.Context, req model.CustomTicketExportRequest, role string, userID int64) ([]*model.TicketExportRow, error) {
+	switch role {
+	case "STAFF", "ADMINISTRATOR", "EXECUTIVE":
+	default:
+		return nil, errors.New(
+			"only STAFF, ADMINISTRATOR, and EXECUTIVE can export custom ticket",
+		)
+	}
+
+	if len(req.Columns) == 0 {
+		return nil, errors.New(
+			"at least one export column is required",
+		)
+	}
+
+	var assignedToID *int64
+
+	if req.AssignedToID != 0 {
+		assignedToID = &req.AssignedToID
+	}
+
+	filter := model.Ticket{
+		TicketCode:   req.TicketCode,
+		ProjectID:    req.ProjectID,
+		AssignedToID: assignedToID,
+		ReporterID:   req.ReporterID,
+		Priority:     req.Priority,
+		Status:       req.Status,
+	}
+
+	return u.ticketRepo.FindForCustomExport(
+		ctx,
+		filter,
+		req.Search,
+		req.StartDate,
+		req.EndDate,
+		role,
+		userID,
+	)
+}

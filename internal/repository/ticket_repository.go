@@ -79,10 +79,6 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 			LEFT JOIN users AS assigned
 				ON assigned.id = tickets.assigned_to_id
 		`).
-		Joins(`
-			LEFT JOIN ticket_resolutions
-				ON ticket_resolutions.ticket_id = tickets.id
-		`).
 		Where(`
 			tickets.deleted_at IS NULL
 		`)
@@ -327,15 +323,19 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		tickets.id,
 		tickets.ticket_code,
 		tickets.project_id,
+
 		tickets.priority,
 		tickets.status,
 		tickets.description,
 		tickets.onhold_notes,
+
 		tickets.created_at,
 		tickets.due_at,
+
 		tickets.reporter_id,
 		tickets.part_id,
 		tickets.asset_id,
+
 		tickets.attachment,
 		tickets.assigned_to_id,
 
@@ -344,7 +344,33 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		tickets.staff_first_response_at,
 		tickets.staff_response_time_seconds,
 
-		ticket_resolutions.attachment_url AS solution_attachment,
+		(
+			SELECT tr.attachment_url
+			FROM ticket_resolutions tr
+			WHERE tr.ticket_id = tickets.id
+			ORDER BY tr.created_at DESC, tr.id DESC
+			LIMIT 1
+		) AS solution_attachment,
+
+		(
+			SELECT c.name
+			FROM ticket_resolutions tr
+			LEFT JOIN causes c
+				ON c.id = tr.cause_id
+			WHERE tr.ticket_id = tickets.id
+			ORDER BY tr.created_at DESC, tr.id DESC
+			LIMIT 1
+		) AS cause_name,
+
+		(
+			SELECT s.name
+			FROM ticket_resolutions tr
+			LEFT JOIN solutions s
+				ON s.id = tr.solution_id
+			WHERE tr.ticket_id = tickets.id
+			ORDER BY tr.created_at DESC, tr.id DESC
+			LIMIT 1
+		) AS solution_name,
 
 		projects.name AS project_name,
 		locations.name AS location_name,
@@ -353,7 +379,7 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 
 		reporter.name AS reporter_name,
 		assigned.name AS assigned_to_name,
-		
+
 		(
 			SELECT MAX(ter.created_at)
 			FROM ticket_engineer_resolutions ter
@@ -609,4 +635,262 @@ func (r *TicketRepo) RecordStaffFirstResponse(ctx context.Context, ticketID int6
 	}
 
 	return nil
+}
+
+func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticket, search string, startDate string, endDate string, role string, userID int64) ([]*model.TicketExportRow, error) {
+	var tickets []*model.TicketExportRow
+
+	query := r.db.WithContext(ctx).
+		Table("tickets").
+		Joins(`
+			LEFT JOIN projects
+				ON projects.id = tickets.project_id
+		`).
+		Joins(`
+			LEFT JOIN locations
+				ON locations.id = tickets.location_id
+		`).
+		Joins(`
+			LEFT JOIN parts
+				ON parts.id = tickets.part_id
+		`).
+		Joins(`
+			LEFT JOIN asset_ids
+				ON asset_ids.id = tickets.asset_id
+		`).
+		Joins(`
+			LEFT JOIN users AS reporter
+				ON reporter.id = tickets.reporter_id
+		`).
+		Joins(`
+			LEFT JOIN users AS assigned
+				ON assigned.id = tickets.assigned_to_id
+		`).
+		Joins(`
+			LEFT JOIN users AS staff_assigned
+				ON staff_assigned.id = tickets.staff_assigned_to_id
+		`).
+		Where("tickets.deleted_at IS NULL")
+
+	if search != "" {
+		s := "%" + search + "%"
+
+		query = query.Where(`
+			(
+				tickets.ticket_code ILIKE ?
+				OR tickets.description ILIKE ?
+				OR reporter.name ILIKE ?
+				OR assigned.name ILIKE ?
+				OR staff_assigned.name ILIKE ?
+				OR projects.name ILIKE ?
+				OR locations.name ILIKE ?
+				OR parts.name ILIKE ?
+				OR asset_ids.name ILIKE ?
+			)
+		`,
+			s,
+			s,
+			s,
+			s,
+			s,
+			s,
+			s,
+			s,
+			s,
+		)
+	}
+
+	if filter.TicketCode != "" {
+		query = query.Where(
+			"tickets.ticket_code = ?",
+			filter.TicketCode,
+		)
+	}
+
+	if filter.ProjectID != 0 {
+		query = query.Where(
+			"tickets.project_id = ?",
+			filter.ProjectID,
+		)
+	}
+
+	if filter.AssignedToID != nil {
+		query = query.Where(
+			"tickets.assigned_to_id = ?",
+			*filter.AssignedToID,
+		)
+	}
+
+	if filter.ReporterID != 0 {
+		query = query.Where(
+			"tickets.reporter_id = ?",
+			filter.ReporterID,
+		)
+	}
+
+	if filter.Priority != "" {
+		query = query.Where(
+			"tickets.priority = ?",
+			filter.Priority,
+		)
+	}
+
+	if filter.Status != "" {
+		query = query.Where(
+			"tickets.status = ?",
+			filter.Status,
+		)
+	}
+
+	if startDate != "" {
+		query = query.Where(
+			"DATE(tickets.created_at) >= ?",
+			startDate,
+		)
+	}
+
+	if endDate != "" {
+		query = query.Where(
+			"DATE(tickets.created_at) <= ?",
+			endDate,
+		)
+	}
+
+	switch role {
+
+	case "STAFF":
+
+		query = query.Where(`
+			(
+				tickets.assigned_to_id = ?
+
+				OR EXISTS (
+					SELECT 1
+					FROM ticket_reassignments tr
+					WHERE tr.ticket_id = tickets.id
+					AND tr.from_user_id = ?
+				)
+			)
+		`, userID, userID)
+
+	case "EXECUTIVE":
+
+		query = query.Where(`
+			EXISTS (
+				SELECT 1
+				FROM user_projects up
+				WHERE up.user_id = ?
+				AND up.project_id = tickets.project_id
+			)
+		`, userID)
+
+	case "ADMINISTRATOR":
+
+		// Full access.
+
+	default:
+
+		return nil, fmt.Errorf(
+			"role %s is not allowed to export custom ticket",
+			role,
+		)
+	}
+
+	err := query.
+		Select(`
+			tickets.id,
+			tickets.ticket_code,
+
+			projects.name AS project_name,
+			locations.name AS location_name,
+			parts.name AS part_name,
+			asset_ids.name AS asset_code,
+
+			reporter.name AS reporter_name,
+			assigned.name AS assigned_to_name,
+			staff_assigned.name AS staff_assigned_to_name,
+
+			tickets.priority,
+			tickets.status,
+
+			tickets.description,
+			tickets.onhold_notes,
+
+			tickets.attachment AS ticket_attachment_url,
+
+			COALESCE(
+				(
+					SELECT c.name
+					FROM ticket_resolutions tr
+					LEFT JOIN causes c
+						ON c.id = tr.cause_id
+					WHERE tr.ticket_id = tickets.id
+					ORDER BY tr.created_at DESC, tr.id DESC
+					LIMIT 1
+				),
+				''
+			) AS resolution_cause,
+
+			COALESCE(
+				(
+					SELECT s.name
+					FROM ticket_resolutions tr
+					LEFT JOIN solutions s
+						ON s.id = tr.solution_id
+					WHERE tr.ticket_id = tickets.id
+					ORDER BY tr.created_at DESC, tr.id DESC
+					LIMIT 1
+				),
+				''
+			) AS resolution_solution,
+
+			(
+				SELECT tr.resolution_notes
+				FROM ticket_resolutions tr
+				WHERE tr.ticket_id = tickets.id
+				ORDER BY tr.created_at DESC, tr.id DESC
+				LIMIT 1
+			) AS resolution_notes,
+
+			(
+				SELECT tr.completion_time
+				FROM ticket_resolutions tr
+				WHERE tr.ticket_id = tickets.id
+				ORDER BY tr.created_at DESC, tr.id DESC
+				LIMIT 1
+			) AS resolution_completion_at,
+
+			(
+				SELECT tr.attachment_url
+				FROM ticket_resolutions tr
+				WHERE tr.ticket_id = tickets.id
+				ORDER BY tr.created_at DESC, tr.id DESC
+				LIMIT 1
+			) AS resolution_attachment_url,
+
+			tickets.created_at,
+			tickets.updated_at,
+			tickets.due_at,
+			tickets.resolved_at,
+
+			tickets.staff_assigned_at,
+			tickets.staff_first_response_at,
+			tickets.staff_response_time_seconds,
+
+			(
+				SELECT ter.created_at
+				FROM ticket_engineer_resolutions ter
+				WHERE ter.ticket_id = tickets.id
+				ORDER BY ter.created_at DESC, ter.id DESC
+				LIMIT 1
+			) AS engineer_resolution_at
+		`).
+		Order("tickets.created_at DESC").
+		Scan(&tickets).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return tickets, nil
 }
