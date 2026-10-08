@@ -731,6 +731,30 @@ func (u *TicketUsecase) ResponseTicket(ctx context.Context, ticketID int64, user
 		},
 	)
 
+	err = helper.PublishNotificationEvent(
+		"ticket.comment",
+		model.NotificationEvent{
+			EventType:     string(model.NotificationTicketComment),
+			UserID:        ticket.ReporterID,
+			ActorID:       userID,
+			TicketID:      ticketID,
+			TicketCode:    ticket.TicketCode,
+			ReferenceType: string(model.ReferenceComment),
+			ReferenceID:   result.ID,
+			Title:         "Tiket Direspons",
+			Message: "No Tiket: " + ticket.TicketCode +
+				" | Staff CCIT telah merespons tiket Anda: \"" +
+				result.Message + "\"",
+		},
+	)
+
+	if err != nil {
+		logrus.Error(
+			"failed publish response notification:",
+			err,
+		)
+	}
+
 	message := responseMessage
 
 	history, err := u.ticketHistoryRepo.Create(
@@ -768,6 +792,7 @@ func (u *TicketUsecase) ResponseTicket(ctx context.Context, ticketID int64, user
 		ctx,
 		ticketID,
 	)
+
 	if err != nil {
 		return err
 	}
