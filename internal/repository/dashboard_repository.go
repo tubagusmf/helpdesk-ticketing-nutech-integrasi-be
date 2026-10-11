@@ -611,3 +611,281 @@ func (r *DashboardRepo) GetStaffSummary(ctx context.Context, filter model.Dashbo
 
 	return result, nil
 }
+
+func (r *DashboardRepo) GetStaffReassignSummary(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardStaffReassignSummary, error) {
+	result := []model.DashboardStaffReassignSummary{}
+
+	if filter.Role != "STAFF" &&
+		filter.Role != "ADMINISTRATOR" {
+		return result, nil
+	}
+
+	joinSQL := `
+        LEFT JOIN ticket_histories th
+            ON th.user_id = staff.id
+            AND th.action = ?
+    `
+
+	joinArgs := []interface{}{
+		"STAFF_REASSIGNED",
+	}
+
+	if filter.StartDate != "" {
+		joinSQL += `
+            AND th.created_at >= ?::date
+        `
+		joinArgs = append(
+			joinArgs,
+			filter.StartDate,
+		)
+	}
+
+	if filter.EndDate != "" {
+		joinSQL += `
+            AND th.created_at < (
+                ?::date + INTERVAL '1 day'
+            )
+        `
+		joinArgs = append(
+			joinArgs,
+			filter.EndDate,
+		)
+	}
+
+	if filter.ProjectID != 0 {
+		joinSQL += `
+            AND EXISTS (
+                SELECT 1
+                FROM tickets tx
+                WHERE tx.id = th.ticket_id
+                  AND tx.deleted_at IS NULL
+                  AND tx.project_id = ?
+            )
+        `
+		joinArgs = append(
+			joinArgs,
+			filter.ProjectID,
+		)
+	}
+
+	if filter.PartID != 0 {
+		joinSQL += `
+            AND EXISTS (
+                SELECT 1
+                FROM tickets tx
+                WHERE tx.id = th.ticket_id
+                  AND tx.deleted_at IS NULL
+                  AND tx.part_id = ?
+            )
+        `
+		joinArgs = append(
+			joinArgs,
+			filter.PartID,
+		)
+	}
+
+	db := r.db.WithContext(ctx).
+		Table("users AS staff").
+		Joins(joinSQL, joinArgs...).
+		Where("staff.role_id = ?", 2).
+		Where("staff.deleted_at IS NULL")
+
+	if filter.Role == "STAFF" {
+		db = db.Where(
+			"staff.id = ?",
+			filter.UserID,
+		)
+	}
+
+	err := db.
+		Select(`
+            staff.id AS staff_id,
+            staff.name AS staff_name,
+            COUNT(th.id) AS reassign_count,
+            MAX(th.created_at) AS last_reassigned_at
+        `).
+		Group(`
+            staff.id,
+            staff.name
+        `).
+		Order(`
+            reassign_count DESC,
+            staff.name ASC
+        `).
+		Scan(&result).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+
+func (r *DashboardRepo) GetStaffOfflineSummary(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardStaffOfflineSummary, error) {
+	result := []model.DashboardStaffOfflineSummary{}
+
+	if filter.Role != "STAFF" &&
+		filter.Role != "ADMINISTRATOR" {
+		return result, nil
+	}
+
+	joinSQL := `
+        LEFT JOIN user_offline_sessions us
+            ON us.user_id = staff.id
+    `
+
+	joinArgs := []interface{}{}
+
+	if filter.StartDate != "" {
+		joinSQL += `
+            AND us.offline_at >= ?::date
+        `
+		joinArgs = append(
+			joinArgs,
+			filter.StartDate,
+		)
+	}
+
+	if filter.EndDate != "" {
+		joinSQL += `
+            AND us.offline_at < (
+                ?::date + INTERVAL '1 day'
+            )
+        `
+		joinArgs = append(
+			joinArgs,
+			filter.EndDate,
+		)
+	}
+
+	db := r.db.WithContext(ctx).
+		Table("users AS staff").
+		Joins(joinSQL, joinArgs...).
+		Where("staff.role_id = ?", 2).
+		Where("staff.deleted_at IS NULL")
+
+	if filter.Role == "STAFF" {
+		db = db.Where(
+			"staff.id = ?",
+			filter.UserID,
+		)
+	}
+
+	err := db.
+		Select(`
+            staff.id AS staff_id,
+            staff.name AS staff_name,
+            staff.is_online AS is_online,
+
+            COUNT(us.id) AS offline_session_count,
+
+            COALESCE(
+                SUM(
+                    CASE
+                        WHEN us.id IS NULL THEN NULL
+
+                        WHEN us.online_at IS NULL THEN
+                            GREATEST(
+                                EXTRACT(
+                                    EPOCH FROM (
+                                        CURRENT_TIMESTAMP
+                                        - us.offline_at
+                                    )
+                                ),
+                                0
+                            )
+
+                        ELSE GREATEST(
+                            us.duration_seconds,
+                            0
+                        )
+                    END
+                ),
+                0
+            )::bigint AS total_duration_seconds,
+
+            COALESCE(
+                AVG(
+                    CASE
+                        WHEN us.id IS NULL THEN NULL
+
+                        WHEN us.online_at IS NULL THEN
+                            GREATEST(
+                                EXTRACT(
+                                    EPOCH FROM (
+                                        CURRENT_TIMESTAMP
+                                        - us.offline_at
+                                    )
+                                ),
+                                0
+                            )
+
+                        ELSE GREATEST(
+                            us.duration_seconds,
+                            0
+                        )
+                    END
+                ),
+                0
+            )::double precision
+                AS average_duration_seconds,
+
+            MAX(us.offline_at)
+                AS last_offline_at,
+
+            (
+                ARRAY_AGG(
+                    us.justification
+                    ORDER BY us.offline_at DESC
+                ) FILTER (
+                    WHERE us.id IS NOT NULL
+                )
+            )[1] AS last_justification,
+
+            (
+                SELECT active.offline_at
+                FROM user_offline_sessions active
+                WHERE active.user_id = staff.id
+                  AND active.online_at IS NULL
+                ORDER BY active.offline_at DESC
+                LIMIT 1
+            ) AS active_offline_since,
+
+            COALESCE(
+                (
+                    SELECT GREATEST(
+                        EXTRACT(
+                            EPOCH FROM (
+                                CURRENT_TIMESTAMP
+                                - active.offline_at
+                            )
+                        ),
+                        0
+                    )::bigint
+                    FROM user_offline_sessions active
+                    WHERE active.user_id = staff.id
+                      AND active.online_at IS NULL
+                    ORDER BY active.offline_at DESC
+                    LIMIT 1
+                ),
+                0
+            ) AS active_offline_duration_seconds
+        `).
+		Group(`
+            staff.id,
+            staff.name,
+            staff.is_online
+        `).
+		Order(`
+            staff.is_online ASC,
+            total_duration_seconds DESC,
+            staff.name ASC
+        `).
+		Scan(&result).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}

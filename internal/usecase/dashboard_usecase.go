@@ -61,3 +61,11 @@ func (u *DashboardUsecase) GetProjectSummary(ctx context.Context, filter model.D
 func (u *DashboardUsecase) GetStaffSummary(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardStaffSummary, error) {
 	return u.repo.GetStaffSummary(ctx, filter)
 }
+
+func (u *DashboardUsecase) GetStaffReassignSummary(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardStaffReassignSummary, error) {
+	return u.repo.GetStaffReassignSummary(ctx, filter)
+}
+
+func (u *DashboardUsecase) GetStaffOfflineSummary(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardStaffOfflineSummary, error) {
+	return u.repo.GetStaffOfflineSummary(ctx, filter)
+}

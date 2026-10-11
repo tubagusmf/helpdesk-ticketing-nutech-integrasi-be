@@ -97,6 +97,26 @@ type DashboardStaffSummary struct {
 	Closed     int64  `json:"closed"`
 }
 
+type DashboardStaffReassignSummary struct {
+	StaffID          int64      `json:"staff_id"`
+	StaffName        string     `json:"staff_name"`
+	ReassignCount    int64      `json:"reassign_count"`
+	LastReassignedAt *time.Time `json:"last_reassigned_at"`
+}
+
+type DashboardStaffOfflineSummary struct {
+	StaffID                      int64      `json:"staff_id"`
+	StaffName                    string     `json:"staff_name"`
+	IsOnline                     bool       `json:"is_online"`
+	OfflineSessionCount          int64      `json:"offline_session_count"`
+	TotalDurationSeconds         int64      `json:"total_duration_seconds"`
+	AverageDurationSeconds       float64    `json:"average_duration_seconds"`
+	LastOfflineAt                *time.Time `json:"last_offline_at"`
+	ActiveOfflineSince           *time.Time `json:"active_offline_since"`
+	ActiveOfflineDurationSeconds int64      `json:"active_offline_duration_seconds"`
+	LastJustification            *string    `json:"last_justification"`
+}
+
 type IDashboardRepository interface {
 	GetSummary(ctx context.Context, filter DashboardFilter) (*DashboardSummary, error)
 	GetStatusDistribution(ctx context.Context, filter DashboardFilter) (*StatusDistribution, error)
@@ -110,4 +130,6 @@ type IDashboardRepository interface {
 	GetOnHoldTickets(ctx context.Context, filter DashboardFilter) ([]DashboardTicket, error)
 	GetProjectSummary(ctx context.Context, filter DashboardFilter) ([]DashboardProjectSummary, error)
 	GetStaffSummary(ctx context.Context, filter DashboardFilter) ([]DashboardStaffSummary, error)
+	GetStaffReassignSummary(ctx context.Context, filter DashboardFilter) ([]DashboardStaffReassignSummary, error)
+	GetStaffOfflineSummary(ctx context.Context, filter DashboardFilter) ([]DashboardStaffOfflineSummary, error)
 }

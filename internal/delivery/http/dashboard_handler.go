@@ -38,6 +38,8 @@ func NewDashboardHandler(e *echo.Echo, u *usecase.DashboardUsecase) {
 	group.GET("/onhold-tickets", handler.GetOnHoldTickets)
 	group.GET("/project-summary", handler.GetProjectSummary)
 	group.GET("/staff-summary", handler.GetStaffSummary)
+	group.GET("/staff-reassign-summary", handler.GetStaffReassignSummary)
+	group.GET("/staff-offline-summary", handler.GetStaffOfflineSummary)
 }
 
 func (h *DashboardHandler) buildFilter(c echo.Context) (model.DashboardFilter, error) {
@@ -320,6 +322,46 @@ func (h *DashboardHandler) GetStaffSummary(c echo.Context) error {
 		filter,
 	)
 
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetStaffReassignSummary(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetStaffReassignSummary(
+		c.Request().Context(),
+		filter,
+	)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, data)
+}
+
+func (h *DashboardHandler) GetStaffOfflineSummary(c echo.Context) error {
+	filter, err := h.buildFilter(c)
+	if err != nil {
+		return err
+	}
+
+	data, err := h.usecase.GetStaffOfflineSummary(
+		c.Request().Context(),
+		filter,
+	)
 	if err != nil {
 		return echo.NewHTTPError(
 			http.StatusInternalServerError,
