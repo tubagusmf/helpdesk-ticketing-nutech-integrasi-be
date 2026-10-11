@@ -3,6 +3,7 @@ package http
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
@@ -33,6 +34,7 @@ func NewUserHandler(e *echo.Echo, userUsecase model.IUserUsecase) {
 	group.PUT("/logout", handler.Logout)
 	group.GET("/profile", handler.Profile, AuthMiddleware)
 	group.PUT("/profile", handler.UpdateProfile, AuthMiddleware)
+	group.GET("/online-status/session", handler.GetActiveOfflineSession, AuthMiddleware)
 }
 
 func (h *UserHandler) Login(c echo.Context) error {
@@ -171,32 +173,70 @@ func (h *UserHandler) Delete(c echo.Context) error {
 
 func (h *UserHandler) UpdateOnlineStatus(c echo.Context) error {
 	var body struct {
-		IsOnline bool `json:"is_online"`
+		IsOnline      bool   `json:"is_online"`
+		Justification string `json:"justification"`
 	}
 
 	if err := c.Bind(&body); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid request")
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid request",
+		)
 	}
 
 	claimValue := c.Request().Context().Value(model.BearerAuthKey)
 	if claimValue == nil {
-		return echo.NewHTTPError(http.StatusUnauthorized, "user not found")
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"user not found",
+		)
 	}
 
-	claim := claimValue.(*model.CustomClaims)
+	claim, ok := claimValue.(*model.CustomClaims)
+	if !ok {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"invalid user claims",
+		)
+	}
 
-	err := h.userUsecase.UpdateOnlineStatus(
+	if !body.IsOnline && strings.TrimSpace(body.Justification) == "" {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"justifikasi wajib diisi",
+		)
+	}
+
+	if len([]rune(body.Justification)) > 1000 {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"justifikasi maksimal 1000 karakter",
+		)
+	}
+
+	session, err := h.userUsecase.ChangeOnlineStatus(
 		c.Request().Context(),
 		claim.UserID,
 		body.IsOnline,
+		body.Justification,
 	)
-
 	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
 	}
 
-	return c.JSON(http.StatusOK, map[string]string{
-		"message": "online status updated",
+	message := "status updated successfully"
+	if body.IsOnline {
+		message = "status Online berhasil diperbarui"
+	} else {
+		message = "status Offline berhasil diperbarui"
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": message,
+		"data":    session,
 	})
 }
 
@@ -317,5 +357,38 @@ func (h *UserHandler) UpdateProfile(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "profile updated successfully",
+	})
+}
+
+func (h *UserHandler) GetActiveOfflineSession(c echo.Context) error {
+	claimValue := c.Request().Context().Value(model.BearerAuthKey)
+	if claimValue == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"user not found",
+		)
+	}
+
+	claim, ok := claimValue.(*model.CustomClaims)
+	if !ok {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"invalid user claims",
+		)
+	}
+
+	session, err := h.userUsecase.GetActiveOfflineSession(
+		c.Request().Context(),
+		claim.UserID,
+	)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"data": session,
 	})
 }

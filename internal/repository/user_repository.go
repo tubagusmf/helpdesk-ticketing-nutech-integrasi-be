@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
@@ -231,15 +232,55 @@ func (r *UserRepo) Delete(ctx context.Context, id int64) error {
 }
 
 func (r *UserRepo) UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error {
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
+
 	now := time.Now()
 
-	return r.db.WithContext(ctx).
-		Model(&model.User{}).
+	if err := tx.Model(&model.User{}).
 		Where("id = ?", userID).
 		Updates(map[string]interface{}{
-			"is_online": isOnline,
-			"last_seen": now,
-		}).Error
+			"is_online":  isOnline,
+			"last_seen":  now,
+			"updated_at": now,
+		}).Error; err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	if isOnline {
+		var session model.UserOfflineSession
+
+		err := tx.
+			Where("user_id = ? AND online_at IS NULL", userID).
+			Order("offline_at DESC").
+			First(&session).Error
+
+		if err == nil {
+			duration := int64(now.Sub(session.OfflineAt).Seconds())
+			if duration < 0 {
+				duration = 0
+			}
+
+			if err := tx.Model(&model.UserOfflineSession{}).
+				Where("id = ?", session.ID).
+				Updates(map[string]interface{}{
+					"online_at":        now,
+					"duration_seconds": duration,
+					"updated_at":       now,
+				}).Error; err != nil {
+				tx.Rollback()
+				return err
+			}
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			tx.Rollback()
+			return err
+		}
+	}
+
+	return tx.Commit().Error
 }
 
 func (r *UserRepo) UpdateLastSeen(ctx context.Context, userID int64) error {
@@ -247,4 +288,160 @@ func (r *UserRepo) UpdateLastSeen(ctx context.Context, userID int64) error {
 		Model(&model.User{}).
 		Where("id = ?", userID).
 		Update("last_seen", time.Now()).Error
+}
+
+func (r *UserRepo) ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*model.UserOfflineSession, error) {
+	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
+
+	var user model.User
+
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("id = ? AND deleted_at IS NULL", userID).
+		First(&user).Error
+	if err != nil {
+		tx.Rollback()
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("user not found")
+		}
+
+		return nil, err
+	}
+
+	now := time.Now()
+
+	// OFFLINE -> ONLINE
+	if isOnline {
+		var session model.UserOfflineSession
+		var completed *model.UserOfflineSession
+
+		err := tx.
+			Where("user_id = ? AND online_at IS NULL", userID).
+			Order("offline_at DESC").
+			First(&session).Error
+
+		if err == nil {
+			duration := int64(now.Sub(session.OfflineAt).Seconds())
+			if duration < 0 {
+				duration = 0
+			}
+
+			if err := tx.Model(&model.UserOfflineSession{}).
+				Where("id = ?", session.ID).
+				Updates(map[string]interface{}{
+					"online_at":        now,
+					"duration_seconds": duration,
+					"updated_at":       now,
+				}).Error; err != nil {
+				tx.Rollback()
+				return nil, err
+			}
+
+			session.OnlineAt = &now
+			session.DurationSeconds = duration
+			session.UpdatedAt = now
+			completed = &session
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			tx.Rollback()
+			return nil, err
+		}
+
+		if err := tx.Model(&model.User{}).
+			Where("id = ?", userID).
+			Updates(map[string]interface{}{
+				"is_online":  true,
+				"last_seen":  now,
+				"updated_at": now,
+			}).Error; err != nil {
+			tx.Rollback()
+			return nil, err
+		}
+
+		if err := tx.Commit().Error; err != nil {
+			return nil, err
+		}
+
+		return completed, nil
+	}
+
+	if !user.IsOnline {
+		var active model.UserOfflineSession
+
+		err := tx.
+			Where("user_id = ? AND online_at IS NULL", userID).
+			Order("offline_at DESC").
+			First(&active).Error
+
+		if err == nil {
+			if err := tx.Commit().Error; err != nil {
+				return nil, err
+			}
+
+			return &active, nil
+		}
+
+		tx.Rollback()
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("user is already offline")
+		}
+
+		return nil, err
+	}
+
+	justification = strings.TrimSpace(justification)
+	if justification == "" {
+		tx.Rollback()
+		return nil, errors.New("justifikasi wajib diisi")
+	}
+
+	session := model.UserOfflineSession{
+		UserID:        userID,
+		Justification: justification,
+		OfflineAt:     now,
+	}
+
+	if err := tx.Create(&session).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Model(&model.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]interface{}{
+			"is_online":  false,
+			"last_seen":  now,
+			"updated_at": now,
+		}).Error; err != nil {
+		tx.Rollback()
+		return nil, err
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return nil, err
+	}
+
+	return &session, nil
+}
+
+func (r *UserRepo) GetActiveOfflineSession(ctx context.Context, userID int64) (*model.UserOfflineSession, error) {
+	var session model.UserOfflineSession
+
+	err := r.db.WithContext(ctx).
+		Where("user_id = ? AND online_at IS NULL", userID).
+		Order("offline_at DESC").
+		First(&session).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil, nil
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return &session, nil
 }

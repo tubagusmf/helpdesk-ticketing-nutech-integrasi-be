@@ -39,6 +39,21 @@ type User struct {
 	ProjectID int64     `json:"-" gorm:"-"`
 }
 
+type UserOfflineSession struct {
+	ID              int64      `gorm:"primaryKey" json:"id"`
+	UserID          int64      `gorm:"not null;index" json:"user_id"`
+	Justification   string     `gorm:"type:text;not null" json:"justification"`
+	OfflineAt       time.Time  `gorm:"not null;index" json:"offline_at"`
+	OnlineAt        *time.Time `json:"online_at"`
+	DurationSeconds int64      `gorm:"not null;default:0" json:"duration_seconds"`
+	CreatedAt       time.Time  `json:"created_at"`
+	UpdatedAt       time.Time  `json:"updated_at"`
+}
+
+func (UserOfflineSession) TableName() string {
+	return "user_offline_sessions"
+}
+
 type IUserRepository interface {
 	FindAll(ctx context.Context, user User, page int, limit int) ([]*User, int64, error)
 	FindByID(ctx context.Context, id int64) (*User, error)
@@ -48,6 +63,8 @@ type IUserRepository interface {
 	Delete(ctx context.Context, id int64) error
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
 	UpdateLastSeen(ctx context.Context, userID int64) error
+	ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*UserOfflineSession, error)
+	GetActiveOfflineSession(ctx context.Context, userID int64) (*UserOfflineSession, error)
 }
 
 type IUserUsecase interface {
@@ -60,6 +77,8 @@ type IUserUsecase interface {
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
 	UpdateLastSeen(ctx context.Context, userID int64) error
 	UpdateProfile(ctx context.Context, userID int64, in UpdateProfileInput) error
+	ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*UserOfflineSession, error)
+	GetActiveOfflineSession(ctx context.Context, userID int64) (*UserOfflineSession, error)
 }
 
 type LoginInput struct {
