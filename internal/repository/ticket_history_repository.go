@@ -28,12 +28,35 @@ func (r *TicketHistoryRepo) FindByTicketID(ctx context.Context, ticketID int64) 
 	tx := r.db.WithContext(ctx).
 		Table("ticket_histories th").
 		Select(`
-			th.*,
-			u.name as user_name
-		`).
-		Joins("LEFT JOIN users u ON u.id = th.user_id").
+            th.*,
+            u.name AS user_name,
+            old_staff.name AS old_user_name,
+            new_staff.name AS new_user_name
+        `).
+		Joins(`
+            LEFT JOIN users u
+                ON u.id = th.user_id
+        `).
+		Joins(`
+            LEFT JOIN users old_staff
+                ON old_staff.id = CASE
+                    WHEN th.action = 'STAFF_REASSIGNED'
+                     AND th.field_name = 'staff_assigned_to_id'
+                    THEN NULLIF(th.old_value, '')::BIGINT
+                    ELSE NULL
+                END
+        `).
+		Joins(`
+            LEFT JOIN users new_staff
+                ON new_staff.id = CASE
+                    WHEN th.action = 'STAFF_REASSIGNED'
+                     AND th.field_name = 'staff_assigned_to_id'
+                    THEN NULLIF(th.new_value, '')::BIGINT
+                    ELSE NULL
+                END
+        `).
 		Where("th.ticket_id = ?", ticketID).
-		Order("th.created_at DESC").
+		Order("th.created_at DESC, th.id DESC").
 		Find(&histories)
 
 	if tx.Error != nil {

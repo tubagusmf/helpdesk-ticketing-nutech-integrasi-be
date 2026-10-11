@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -33,6 +34,7 @@ func NewTicketHandler(e *echo.Echo, ticketUsecase model.ITicketUsecase) {
 	group.GET("/:id/reassignment", handler.GetByTicketID, AuthMiddleware)
 	group.POST("/:id/response-ticket", handler.ResponseTicket, AuthMiddleware)
 	group.POST("/export-custom", handler.ExportCustom, AuthMiddleware)
+	group.POST("/reassign-staff/:id", handler.ReassignToOnlineStaff, AuthMiddleware)
 }
 
 func (h *TicketHandler) Create(c echo.Context) error {
@@ -649,5 +651,78 @@ func (h *TicketHandler) ExportCustom(c echo.Context) error {
 		http.StatusOK,
 		"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
 		file.Bytes(),
+	)
+}
+
+func (h *TicketHandler) ReassignToOnlineStaff(c echo.Context) error {
+	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid ticket id",
+		)
+	}
+
+	claimValue := c.Request().
+		Context().
+		Value(model.BearerAuthKey)
+
+	if claimValue == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+	}
+
+	claim := claimValue.(*model.CustomClaims)
+
+	if claim.Role != "STAFF" {
+		return echo.NewHTTPError(
+			http.StatusForbidden,
+			"fitur ini hanya untuk STAFF",
+		)
+	}
+
+	var req struct {
+		Justification string `json:"justification"`
+	}
+
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid request",
+		)
+	}
+
+	req.Justification = strings.TrimSpace(req.Justification)
+
+	if req.Justification == "" {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"justifikasi reassign wajib diisi",
+		)
+	}
+
+	ticket, err := h.ticketUsecase.ReassignToOnlineStaff(
+		c.Request().Context(),
+		ticketID,
+		claim.UserID,
+		req.Justification,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(
+		http.StatusOK,
+		map[string]interface{}{
+			"message":    "ticket berhasil dialihkan ke Staff online",
+			"staff_name": ticket.StaffAssignedToName,
+			"data":       ticket,
+		},
 	)
 }

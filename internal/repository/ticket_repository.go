@@ -79,6 +79,10 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 			LEFT JOIN users AS assigned
 				ON assigned.id = tickets.assigned_to_id
 		`).
+		Joins(`
+			LEFT JOIN users AS staff_assigned
+				ON staff_assigned.id = tickets.staff_assigned_to_id
+		`).
 		Where(`
 			tickets.deleted_at IS NULL
 		`)
@@ -175,16 +179,17 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 
 	case "STAFF":
 		query = query.Where(`
-			(
-				tickets.assigned_to_id = ?
-				OR EXISTS (
-					SELECT 1
-					FROM ticket_reassignments tr
-					WHERE tr.ticket_id = tickets.id
-					AND tr.from_user_id = ?
-				)
-			)
-		`, userID, userID)
+        (
+            tickets.staff_assigned_to_id = ?
+            OR tickets.assigned_to_id = ?
+            OR EXISTS (
+                SELECT 1
+                FROM ticket_reassignments tr
+                WHERE tr.ticket_id = tickets.id
+                  AND tr.from_user_id = ?
+            )
+        )
+    `, userID, userID, userID)
 
 	case "USER":
 
@@ -379,6 +384,7 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 
 		reporter.name AS reporter_name,
 		assigned.name AS assigned_to_name,
+		staff_assigned.name AS staff_assigned_to_name,
 
 		(
 			SELECT MAX(ter.created_at)

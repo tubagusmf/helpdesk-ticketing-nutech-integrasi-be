@@ -202,6 +202,7 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 
 		reporter.name as reporter_name,
 		assigned.name as assigned_to_name,
+		staff_assigned.name as staff_assigned_to_name,
 		projects.name as project_name,
 		locations.name as location_name,
 		parts.name as part_name,
@@ -214,6 +215,10 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 		Joins(`
 		LEFT JOIN users assigned
 		ON assigned.id = tickets.assigned_to_id
+	`).
+		Joins(`
+		LEFT JOIN users staff_assigned
+		ON staff_assigned.id = tickets.staff_assigned_to_id
 	`).
 		Joins(`
 		LEFT JOIN projects

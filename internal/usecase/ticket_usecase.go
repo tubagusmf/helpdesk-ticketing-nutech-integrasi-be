@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -13,6 +14,7 @@ import (
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 	ws "github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type TicketUsecase struct {
@@ -852,4 +854,258 @@ func (u *TicketUsecase) ExportCustom(ctx context.Context, req model.CustomTicket
 		role,
 		userID,
 	)
+}
+
+func (u *TicketUsecase) ReassignToOnlineStaff(ctx context.Context, ticketID int64, userID int64, justification string) (*model.TicketResponse, error) {
+	justification = strings.TrimSpace(justification)
+
+	if justification == "" {
+		return nil, errors.New("justifikasi reassign wajib diisi")
+	}
+
+	if len([]rune(justification)) > 1000 {
+		return nil, errors.New("justifikasi maksimal 1000 karakter")
+	}
+
+	now := time.Now()
+
+	var ticketCode string
+	var selectedStaff model.User
+	var assignmentHistory model.TicketHistory
+	var reasonHistory model.TicketHistory
+
+	err := u.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var actor model.User
+
+		if err := tx.
+			Select("id", "role_id").
+			First(&actor, userID).Error; err != nil {
+			return err
+		}
+
+		if actor.RoleID != 2 {
+			return errors.New("fitur ini hanya untuk STAFF")
+		}
+
+		var ticket model.Ticket
+
+		if err := tx.
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("id = ? AND deleted_at IS NULL", ticketID).
+			First(&ticket).Error; err != nil {
+			return err
+		}
+
+		if ticket.Status == model.StatusResolved ||
+			ticket.Status == model.StatusClosed {
+			return errors.New(
+				"ticket yang sudah selesai tidak dapat direassign",
+			)
+		}
+
+		var currentStaffID int64
+
+		if ticket.StaffAssignedToID != nil {
+			currentStaffID = *ticket.StaffAssignedToID
+		} else if ticket.AssignedToID != nil {
+			currentStaffID = *ticket.AssignedToID
+		}
+
+		if currentStaffID != userID {
+			return errors.New(
+				"ticket bukan tanggung jawab Staff ini",
+			)
+		}
+
+		var candidates []model.User
+
+		if err := tx.
+			Where(
+				"role_id = ? AND is_online = ? AND is_active = ?",
+				2,
+				true,
+				true,
+			).
+			Where("id <> ?", userID).
+			Order("last_ticket_assigned_at ASC NULLS FIRST").
+			Order("id ASC").
+			Find(&candidates).Error; err != nil {
+			return err
+		}
+
+		if len(candidates) == 0 {
+			return errors.New(
+				"tidak ada Staff lain yang sedang online",
+			)
+		}
+
+		cutoff := now.Add(-time.Minute)
+		found := false
+
+		for _, candidate := range candidates {
+			if candidate.LastTicketAssignedAt == nil ||
+				!candidate.LastTicketAssignedAt.After(cutoff) {
+				selectedStaff = candidate
+				found = true
+				break
+			}
+		}
+
+		if !found {
+			return errors.New(
+				"semua Staff online lain masih dalam cooldown " +
+					"assignment 1 menit. Silakan coba kembali",
+			)
+		}
+
+		ticketCode = ticket.TicketCode
+
+		updates := map[string]interface{}{
+			"staff_assigned_to_id":        selectedStaff.ID,
+			"staff_assigned_at":           now,
+			"staff_first_response_at":     nil,
+			"staff_response_time_seconds": nil,
+			"updated_at":                  now,
+		}
+
+		if ticket.AssignedToID == nil ||
+			*ticket.AssignedToID == userID {
+			updates["assigned_to_id"] = selectedStaff.ID
+		}
+
+		result := tx.
+			Model(&model.Ticket{}).
+			Where("id = ?", ticketID).
+			Updates(updates)
+
+		if result.Error != nil {
+			return result.Error
+		}
+
+		if result.RowsAffected == 0 {
+			return errors.New("gagal memperbarui assignment ticket")
+		}
+
+		if err := tx.
+			Model(&model.User{}).
+			Where("id = ?", selectedStaff.ID).
+			Update("last_ticket_assigned_at", now).Error; err != nil {
+			return err
+		}
+
+		oldValue := fmt.Sprintf("%d", currentStaffID)
+		newValue := fmt.Sprintf("%d", selectedStaff.ID)
+
+		assignmentHistory = model.TicketHistory{
+			TicketID:  ticketID,
+			UserID:    userID,
+			Action:    "STAFF_REASSIGNED",
+			FieldName: "staff_assigned_to_id",
+			OldValue:  &oldValue,
+			NewValue:  &newValue,
+		}
+
+		if err := tx.Create(&assignmentHistory).Error; err != nil {
+			return err
+		}
+
+		reasonHistory = model.TicketHistory{
+			TicketID:  ticketID,
+			UserID:    userID,
+			Action:    "STAFF_REASSIGNMENT_REASON",
+			FieldName: "justification",
+			NewValue:  &justification,
+		}
+
+		if err := tx.Create(&reasonHistory).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	histories, historyErr := u.ticketHistoryRepo.FindByTicketID(
+		ctx,
+		ticketID,
+	)
+
+	if historyErr != nil {
+		logrus.WithError(historyErr).Error(
+			"failed to fetch staff reassignment history",
+		)
+	} else {
+		for _, history := range histories {
+			if history == nil {
+				continue
+			}
+
+			switch history.ID {
+			case assignmentHistory.ID:
+				history.Type = "STAFF_REASSIGNED"
+
+				BroadcastTicketHistory(
+					u.hub,
+					history,
+				)
+
+			case reasonHistory.ID:
+				history.Type = "STAFF_REASSIGNMENT_REASON"
+				history.Message = history.NewValue
+
+				BroadcastTicketHistory(
+					u.hub,
+					history,
+				)
+			}
+		}
+	}
+
+	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, ticketID)
+	if err != nil {
+		return nil, err
+	}
+
+	ws.BroadcastToRoles(
+		u.hub,
+		[]string{
+			"ADMINISTRATOR",
+			"EXECUTIVE",
+			"STAFF",
+			"USER",
+			"ENGINEER",
+		},
+		ws.Message{
+			Type: ws.EventTicketUpdated,
+			Data: ticketResp,
+		},
+	)
+
+	err = helper.PublishNotificationEvent(
+		"ticket.reassigned",
+		model.NotificationEvent{
+			EventType:     "TICKET_REASSIGNED",
+			UserID:        selectedStaff.ID,
+			ActorID:       userID,
+			TicketID:      ticketID,
+			TicketCode:    ticketCode,
+			ReferenceType: "TICKET",
+			ReferenceID:   ticketID,
+			Title:         "Tiket Dialihkan ke Anda",
+			Message: "No Tiket: " + ticketCode +
+				" | Justifikasi: " + justification,
+		},
+	)
+
+	if err != nil {
+		logrus.Error(
+			"failed publish staff reassignment notification:",
+			err,
+		)
+	}
+
+	return ticketResp, nil
 }

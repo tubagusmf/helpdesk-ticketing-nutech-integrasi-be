@@ -72,6 +72,7 @@ type TicketResponse struct {
 	AssignedToID             *int64                   `json:"assigned_to_id"`
 	AssignedToName           string                   `json:"assigned_to_name"`
 	StaffAssignedToID        *int64                   `json:"staff_assigned_to_id"`
+	StaffAssignedToName      string                   `json:"staff_assigned_to_name"`
 	StaffAssignedAt          *time.Time               `json:"staff_assigned_at"`
 	StaffFirstResponseAt     *time.Time               `json:"staff_first_response_at"`
 	StaffResponseTimeSeconds *int64                   `json:"staff_response_time_seconds"`
@@ -154,8 +155,7 @@ type ITicketRepository interface {
 	FindResponseByID(ctx context.Context, id int64) (*TicketResponse, error)
 	SetStaffAssignment(ctx context.Context, ticketID int64, staffID int64) error
 	RecordStaffFirstResponse(ctx context.Context, ticketID int64, userID int64) error
-	FindForCustomExport(ctx context.Context, filter Ticket, search string, startDate string,
-		endDate string, role string, userID int64) ([]*TicketExportRow, error)
+	FindForCustomExport(ctx context.Context, filter Ticket, search string, startDate string, endDate string, role string, userID int64) ([]*TicketExportRow, error)
 }
 
 type ITicketUsecase interface {
@@ -169,4 +169,5 @@ type ITicketUsecase interface {
 	GetReassignmentByTicketID(ctx context.Context, ticketID int64) (*TicketReassignment, error)
 	ResponseTicket(ctx context.Context, ticketID int64, userID int64) error
 	ExportCustom(ctx context.Context, req CustomTicketExportRequest, role string, userID int64) ([]*TicketExportRow, error)
+	ReassignToOnlineStaff(ctx context.Context, ticketID int64, userID int64, justification string) (*TicketResponse, error)
 }

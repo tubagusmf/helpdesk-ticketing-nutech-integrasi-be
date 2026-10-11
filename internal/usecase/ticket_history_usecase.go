@@ -41,7 +41,8 @@ func (u *TicketHistoryUsecase) FindByTicketID(ctx context.Context, ticketID int6
 
 		if h.Action == "COMMENT" ||
 			h.Action == "ONHOLD_NOTE" ||
-			h.Action == "ENGINEER_RESOLUTION" {
+			h.Action == "ENGINEER_RESOLUTION" ||
+			h.Action == "STAFF_REASSIGNMENT_REASON" {
 			h.Message = h.NewValue
 		}
 
@@ -97,6 +98,12 @@ func mapAction(action, field string) string {
 
 	case "ENGINEER_RESOLUTION":
 		return "ENGINEER_RESOLUTION"
+
+	case "STAFF_REASSIGNED":
+		return "STAFF_REASSIGNED"
+
+	case "STAFF_REASSIGNMENT_REASON":
+		return "STAFF_REASSIGNMENT_REASON"
 	}
 
 	return "OTHER"
