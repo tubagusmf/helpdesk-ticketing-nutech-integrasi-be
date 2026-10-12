@@ -26,6 +26,8 @@ const (
 	customRowHeight  = 24.0
 )
 
+const ticketHistorySheetName = "Ticket History"
+
 type CustomExcelColumn struct {
 	Key   string
 	Title string
@@ -1524,6 +1526,348 @@ func GenerateCustomExcelTickets(tickets []*model.TicketExportRow, columns []stri
 			"write custom Excel buffer: %w",
 			err,
 		)
+	}
+
+	return buf, nil
+}
+
+func historyExcelString(value *string) string {
+	if value == nil {
+		return ""
+	}
+
+	return *value
+}
+
+func historyExcelLabel(h *model.TicketHistoryResponse) string {
+	switch h.Type {
+	case "CREATED":
+		return "Ticket dibuat"
+	case "STATUS_UPDATED":
+		return "Status diubah"
+	case "COMMENT":
+		return "Komentar"
+	case "ONHOLD_NOTE":
+		return "Catatan OnHold"
+	case "REASSIGNED":
+		return "Tiket dialihkan ke Engineer"
+	case "STAFF_REASSIGNED":
+		return "Tiket dialihkan ke Staff"
+	case "STAFF_REASSIGNMENT_REASON":
+		return "Justifikasi reassign"
+	case "RESOLUTION":
+		return "Solusi tiket"
+	case "ENGINEER_RESOLUTION":
+		return "Solusi Tim Engineer"
+	default:
+		return "Aktivitas lainnya"
+	}
+}
+
+func historyExcelDetail(h *model.TicketHistoryResponse) string {
+	oldValue := historyExcelString(h.OldValue)
+	newValue := historyExcelString(h.NewValue)
+	message := historyExcelString(h.Message)
+
+	switch h.Type {
+	case "CREATED":
+		return "Tiket berhasil dibuat"
+
+	case "STATUS_UPDATED":
+		return fmt.Sprintf("Status: %s → %s", oldValue, newValue)
+
+	case "COMMENT":
+		return message
+
+	case "ONHOLD_NOTE":
+		if message != "" {
+			return "Catatan OnHold: " + message
+		}
+		return newValue
+
+	case "REASSIGNED":
+		if message != "" {
+			return message
+		}
+		if newValue != "" {
+			return newValue
+		}
+		return "Tiket dialihkan kepada Tim Engineer"
+
+	case "STAFF_REASSIGNED":
+		return fmt.Sprintf(
+			"%s → %s",
+			h.OldUserName,
+			h.NewUserName,
+		)
+
+	case "STAFF_REASSIGNMENT_REASON":
+		if message != "" {
+			return message
+		}
+		return newValue
+
+	case "ENGINEER_RESOLUTION", "RESOLUTION":
+		if message != "" {
+			return message
+		}
+		return newValue
+	}
+
+	if message != "" {
+		return message
+	}
+
+	if oldValue != "" || newValue != "" {
+		return fmt.Sprintf("%s → %s", oldValue, newValue)
+	}
+
+	return ""
+}
+
+func historyExcelOldValue(h *model.TicketHistoryResponse) string {
+	if h.Type == "STAFF_REASSIGNED" {
+		return h.OldUserName
+	}
+
+	return historyExcelString(h.OldValue)
+}
+
+func historyExcelNewValue(h *model.TicketHistoryResponse) string {
+	if h.Type == "STAFF_REASSIGNED" {
+		return h.NewUserName
+	}
+
+	return historyExcelString(h.NewValue)
+}
+
+func GenerateExcelTicketHistory(ticketCode string, ticketID int64, histories []*model.TicketHistoryResponse) (*bytes.Buffer, error) {
+	f := excelize.NewFile()
+	defer f.Close()
+
+	sheet := ticketHistorySheetName
+
+	if err := f.SetSheetName("Sheet1", sheet); err != nil {
+		return nil, fmt.Errorf("rename history sheet: %w", err)
+	}
+
+	titleStyle, err := f.NewStyle(&excelize.Style{
+		Font: &excelize.Font{
+			Bold:  true,
+			Color: "FFFFFF",
+			Size:  14,
+		},
+		Fill: excelize.Fill{
+			Type:    "pattern",
+			Color:   []string{"1F4E78"},
+			Pattern: 1,
+		},
+		Alignment: &excelize.Alignment{
+			Horizontal: "center",
+			Vertical:   "center",
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create history title style: %w", err)
+	}
+
+	headerStyle, err := createHeaderStyle(f)
+	if err != nil {
+		return nil, fmt.Errorf("create history header style: %w", err)
+	}
+
+	bodyStyle, err := createBorderStyle(f)
+	if err != nil {
+		return nil, fmt.Errorf("create history body style: %w", err)
+	}
+
+	if err := f.MergeCell(sheet, "A1", "M1"); err != nil {
+		return nil, fmt.Errorf("merge history title: %w", err)
+	}
+
+	if err := f.SetCellValue(
+		sheet,
+		"A1",
+		fmt.Sprintf("RIWAYAT AKTIVITAS TIKET #%s", ticketCode),
+	); err != nil {
+		return nil, fmt.Errorf("set history title: %w", err)
+	}
+
+	if err := f.SetCellStyle(
+		sheet, "A1", "M1", titleStyle,
+	); err != nil {
+		return nil, fmt.Errorf("style history title: %w", err)
+	}
+
+	if err := f.SetRowHeight(sheet, 1, 30); err != nil {
+		return nil, fmt.Errorf("set history title height: %w", err)
+	}
+
+	metadata := []struct {
+		cell  string
+		value interface{}
+	}{
+		{"A2", "Nomor Tiket"},
+		{"B2", ticketCode},
+		{"L2", "Tanggal Export"},
+		{"M2", time.Now().Format("02/01/2006 15:04:05")},
+	}
+
+	for _, item := range metadata {
+		if err := f.SetCellValue(sheet, item.cell, item.value); err != nil {
+			return nil, fmt.Errorf(
+				"set history metadata %s: %w",
+				item.cell,
+				err,
+			)
+		}
+	}
+
+	headers := []string{
+		"No",
+		"History ID",
+		"Waktu Aktivitas",
+		"Nama Pengguna",
+		"Aktivitas",
+		"Tipe",
+		"Action",
+		"Field",
+		"Nilai Lama",
+		"Nilai Baru",
+		"Detail / Pesan",
+		"Staff Sebelumnya",
+		"Staff Berikutnya",
+	}
+
+	for i, header := range headers {
+		cell, err := excelize.CoordinatesToCellName(i+1, 4)
+		if err != nil {
+			return nil, fmt.Errorf("create history header cell: %w", err)
+		}
+
+		if err := f.SetCellValue(sheet, cell, header); err != nil {
+			return nil, fmt.Errorf("set history header %s: %w", cell, err)
+		}
+
+		if err := f.SetCellStyle(sheet, cell, cell, headerStyle); err != nil {
+			return nil, fmt.Errorf("style history header %s: %w", cell, err)
+		}
+	}
+
+	if err := f.SetRowHeight(sheet, 4, 32); err != nil {
+		return nil, fmt.Errorf("set history header height: %w", err)
+	}
+
+	columnWidths := map[string]float64{
+		"A": 7,
+		"B": 13,
+		"C": 22,
+		"D": 25,
+		"E": 32,
+		"F": 28,
+		"G": 30,
+		"H": 28,
+		"I": 30,
+		"J": 30,
+		"K": 50,
+		"L": 26,
+		"M": 26,
+	}
+
+	for column, width := range columnWidths {
+		if err := f.SetColWidth(
+			sheet, column, column, width,
+		); err != nil {
+			return nil, fmt.Errorf(
+				"set history column width %s: %w",
+				column,
+				err,
+			)
+		}
+	}
+
+	row := 5
+	sequence := 1
+
+	for _, h := range histories {
+		if h == nil {
+			continue
+		}
+
+		values := []interface{}{
+			sequence,
+			h.ID,
+			h.CreatedAt.Format("02/01/2006 15:04:05"),
+			h.UserName,
+			historyExcelLabel(h),
+			h.Type,
+			h.Action,
+			h.FieldName,
+			historyExcelOldValue(h),
+			historyExcelNewValue(h),
+			historyExcelDetail(h),
+			h.OldUserName,
+			h.NewUserName,
+		}
+
+		for i, value := range values {
+			cell, err := excelize.CoordinatesToCellName(i+1, row)
+			if err != nil {
+				return nil, fmt.Errorf("create history data cell: %w", err)
+			}
+
+			if err := f.SetCellValue(sheet, cell, value); err != nil {
+				return nil, fmt.Errorf(
+					"set history data %s: %w",
+					cell,
+					err,
+				)
+			}
+
+			if err := f.SetCellStyle(sheet, cell, cell, bodyStyle); err != nil {
+				return nil, fmt.Errorf(
+					"style history data %s: %w",
+					cell,
+					err,
+				)
+			}
+		}
+
+		if err := f.SetRowHeight(sheet, row, 42); err != nil {
+			return nil, fmt.Errorf("set history row height: %w", err)
+		}
+
+		row++
+		sequence++
+	}
+
+	if err := f.SetPanes(sheet, &excelize.Panes{
+		Freeze:      true,
+		Split:       false,
+		XSplit:      0,
+		YSplit:      4,
+		TopLeftCell: "A5",
+		ActivePane:  "bottomLeft",
+	}); err != nil {
+		return nil, fmt.Errorf("freeze history header: %w", err)
+	}
+
+	lastRow := row - 1
+	if lastRow < 4 {
+		lastRow = 4
+	}
+
+	if err := f.AutoFilter(
+		sheet,
+		fmt.Sprintf("A4:M%d", lastRow),
+		nil,
+	); err != nil {
+		return nil, fmt.Errorf("set history autofilter: %w", err)
+	}
+
+	buf, err := f.WriteToBuffer()
+	if err != nil {
+		return nil, fmt.Errorf("write history Excel buffer: %w", err)
 	}
 
 	return buf, nil
