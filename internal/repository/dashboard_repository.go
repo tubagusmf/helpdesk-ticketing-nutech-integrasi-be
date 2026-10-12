@@ -222,15 +222,24 @@ func (r *DashboardRepo) GetProjects(ctx context.Context, filter model.DashboardF
 
 func applyFilter(db *gorm.DB, filter model.DashboardFilter) *gorm.DB {
 	if filter.ProjectID != 0 {
-		db = db.Where("tickets.project_id = ?", filter.ProjectID)
+		db = db.Where(
+			"tickets.project_id = ?",
+			filter.ProjectID,
+		)
 	}
 
 	if filter.PartID != 0 {
-		db = db.Where("tickets.part_id = ?", filter.PartID)
+		db = db.Where(
+			"tickets.part_id = ?",
+			filter.PartID,
+		)
 	}
 
 	if filter.StartDate != "" {
-		db = db.Where("tickets.created_at >= ?", filter.StartDate)
+		db = db.Where(
+			"tickets.created_at >= ?",
+			filter.StartDate,
+		)
 	}
 
 	if filter.EndDate != "" {
@@ -240,59 +249,35 @@ func applyFilter(db *gorm.DB, filter model.DashboardFilter) *gorm.DB {
 		)
 	}
 
-	// EXECUTIVE
-	if filter.Role == "EXECUTIVE" {
-		db = db.Where(`
-			EXISTS (
-				SELECT 1
-				FROM user_projects up
-				WHERE up.user_id = ?
-				AND up.project_id = tickets.project_id
-			)
-		`, filter.UserID)
+	switch filter.Role {
+	case "ADMINISTRATOR":
 
-		return db
-	}
+	case "STAFF":
+		db = db.Where(
+			"tickets.staff_assigned_to_id = ?",
+			filter.UserID,
+		)
 
-	// STAFF
-	if filter.Role == "STAFF" {
-		db = db.Where(`
-			EXISTS (
-				SELECT 1
-				FROM user_projects up
-				WHERE up.user_id = ?
-				AND up.project_id = tickets.project_id
-			)
-		`, filter.UserID)
-
-		return db
-	}
-
-	// USER
-	if filter.Role == "USER" {
+	case "USER":
 		db = db.Where(
 			"tickets.reporter_id = ?",
 			filter.UserID,
 		)
 
-		return db
-	}
-
-	//ENGINEER
-	if filter.Role == "ENGINEER" {
+	case "EXECUTIVE", "ENGINEER":
 		db = db.Where(`
-			EXISTS (
-				SELECT 1
-				FROM user_projects up
-				WHERE up.user_id = ?
-				AND up.project_id = tickets.project_id
-			)
-		`, filter.UserID)
+            EXISTS (
+                SELECT 1
+                FROM user_projects up
+                WHERE up.user_id = ?
+                  AND up.project_id = tickets.project_id
+            )
+        `, filter.UserID)
 
-		return db
+	default:
+		db = db.Where("1 = 0")
 	}
 
-	// ADMINISTRATOR
 	return db
 }
 
