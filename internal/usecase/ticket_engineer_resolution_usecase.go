@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"mime/multipart"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -82,7 +81,6 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 
 	if ticket.AssignedToID == nil ||
 		*ticket.AssignedToID != engineerID {
-
 		return nil, errors.New(
 			"ticket bukan merupakan ticket yang sedang ditangani engineer ini",
 		)
@@ -101,20 +99,22 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		}
 	}
 
+	now := time.Now()
+
 	resolution := &model.TicketEngineerResolution{
 		TicketID:   ticketID,
 		EngineerID: engineerID,
 		Solution:   solution,
 		IsRead:     false,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
-	if err := u.resolutionRepo.Create(
-		ctx,
-		resolution,
-	); err != nil {
-		return nil, err
+	if err := u.resolutionRepo.Create(ctx, resolution); err != nil {
+		return nil, fmt.Errorf(
+			"gagal menyimpan engineer resolution: %w",
+			err,
+		)
 	}
 
 	for _, file := range files {
@@ -136,31 +136,27 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 			ticketID,
 		)
 
-		originalName := strings.TrimSuffix(
-			file.Filename,
-			filepath.Ext(file.Filename),
-		)
-
-		fileName := fmt.Sprintf(
-			"resolution_%d_%d_%s",
-			resolution.ID,
-			time.Now().UnixNano(),
-			originalName,
-		)
-
-		uploadResult, err := helper.UploadFile(
+		uploadResult, uploadErr := helper.UploadFile(
 			src,
 			folder,
-			fileName,
+			file.Filename,
 		)
 
-		src.Close()
+		closeErr := src.Close()
 
-		if err != nil {
+		if uploadErr != nil {
 			return nil, fmt.Errorf(
-				"gagal upload file %s: %w",
+				"gagal menyimpan file %s ke penyimpanan lokal: %w",
 				file.Filename,
-				err,
+				uploadErr,
+			)
+		}
+
+		if closeErr != nil {
+			return nil, fmt.Errorf(
+				"gagal menutup file %s: %w",
+				file.Filename,
+				closeErr,
 			)
 		}
 
@@ -168,8 +164,9 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 			ResolutionID: resolution.ID,
 			FileName:     file.Filename,
 			FileURL:      uploadResult.SecureURL,
-			PublicID:     &uploadResult.PublicID,
-			CreatedAt:    time.Now(),
+			PublicID:     nil,
+
+			CreatedAt: time.Now(),
 		}
 
 		if err := u.resolutionRepo.CreateAttachment(
@@ -177,7 +174,7 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 			attachment,
 		); err != nil {
 			return nil, fmt.Errorf(
-				"gagal menyimpan attachment %s: %w",
+				"gagal menyimpan metadata attachment %s: %w",
 				file.Filename,
 				err,
 			)
@@ -193,7 +190,6 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		ctx,
 		ticketID,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf(
 			"gagal mengambil reassignment ticket: %w",
@@ -245,7 +241,6 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 			NewValue:  &solution,
 		},
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf(
 			"gagal menyimpan history engineer resolution: %w",
@@ -257,7 +252,6 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		ctx,
 		history.TicketID,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf(
 			"gagal mengambil history engineer resolution: %w",
@@ -279,7 +273,6 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		ctx,
 		ticketID,
 	)
-
 	if err != nil {
 		return nil, fmt.Errorf(
 			"gagal mengambil ticket response setelah engineer resolution: %w",
@@ -318,14 +311,16 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		)
 
 		if err != nil {
-			fmt.Println("failed publish staff resolution notification:", err)
+			fmt.Println(
+				"failed publish staff resolution notification:",
+				err,
+			)
 		}
 	}
 
 	if ticket.ReporterID != 0 &&
 		(ticket.StaffAssignedToID == nil ||
 			ticket.ReporterID != *ticket.StaffAssignedToID) {
-
 		err = helper.PublishNotificationEvent(
 			"ticket.engineer_resolution",
 			model.NotificationEvent{
@@ -343,7 +338,10 @@ func (u *TicketEngineerResolutionUsecase) SubmitResolution(ctx context.Context, 
 		)
 
 		if err != nil {
-			fmt.Println("failed publish reporter resolution notification:", err)
+			fmt.Println(
+				"failed publish reporter resolution notification:",
+				err,
+			)
 		}
 	}
 
@@ -357,8 +355,7 @@ func (u *TicketEngineerResolutionUsecase) GetByTicketID(ctx context.Context, tic
 	)
 }
 
-func (u *TicketEngineerResolutionUsecase) MarkAsRead(ctx context.Context, ticketID int64,
-) error {
+func (u *TicketEngineerResolutionUsecase) MarkAsRead(ctx context.Context, ticketID int64) error {
 	return u.resolutionRepo.MarkAsRead(
 		ctx,
 		ticketID,

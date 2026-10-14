@@ -42,14 +42,14 @@ func GetString(key string) string {
 	return viper.GetString(key)
 }
 
-func CloudinaryCloudName() string {
-	return viper.GetString("CLOUDINARY_CLOUD_NAME")
-}
+// func CloudinaryCloudName() string {
+// 	return viper.GetString("CLOUDINARY_CLOUD_NAME")
+// }
 
-func CloudinaryAPIKey() string {
-	return viper.GetString("CLOUDINARY_API_KEY")
-}
+// func CloudinaryAPIKey() string {
+// 	return viper.GetString("CLOUDINARY_API_KEY")
+// }
 
-func CloudinaryAPISecret() string {
-	return viper.GetString("CLOUDINARY_API_SECRET")
-}
+// func CloudinaryAPISecret() string {
+// 	return viper.GetString("CLOUDINARY_API_SECRET")
+// }

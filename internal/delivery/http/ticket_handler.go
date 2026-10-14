@@ -338,8 +338,7 @@ func (h *TicketHandler) ReassignTicket(c echo.Context) error {
 		10,
 		64,
 	)
-
-	if err != nil {
+	if err != nil || ticketID <= 0 {
 		return echo.NewHTTPError(
 			http.StatusBadRequest,
 			"invalid ticket id",
@@ -357,43 +356,59 @@ func (h *TicketHandler) ReassignTicket(c echo.Context) error {
 		)
 	}
 
-	claim := claimValue.(*model.CustomClaims)
+	claim, ok := claimValue.(*model.CustomClaims)
+	if !ok || claim == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"invalid authentication claims",
+		)
+	}
 
-	var req model.ReassignTicketInput
-
-	req.ToUserID, err = strconv.ParseInt(
+	toUserID, err := strconv.ParseInt(
 		c.FormValue("to_user_id"),
 		10,
 		64,
 	)
-
-	if err != nil {
+	if err != nil || toUserID <= 0 {
 		return echo.NewHTTPError(
 			http.StatusBadRequest,
 			"invalid engineer",
 		)
 	}
 
-	req.Message = c.FormValue("message")
-
-	if req.Message == "" {
+	message := strings.TrimSpace(
+		c.FormValue("message"),
+	)
+	if message == "" {
 		return echo.NewHTTPError(
 			http.StatusBadRequest,
 			"message is required",
 		)
 	}
 
-	var attachments []model.TicketReassignmentAttachment
+	req := model.ReassignTicketInput{
+		ToUserID: toUserID,
+		Message:  message,
+	}
 
 	form, err := c.MultipartForm()
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid multipart form",
+		)
+	}
 
-	if err == nil && form != nil {
+	var attachments []model.TicketReassignmentAttachment
 
+	if form != nil {
 		files := form.File["attachments"]
 
 		for _, fileHeader := range files {
+			if fileHeader == nil {
+				continue
+			}
 
-			// MAX 10 MB / FILE
 			if fileHeader.Size > 10*1024*1024 {
 				return echo.NewHTTPError(
 					http.StatusBadRequest,
@@ -403,9 +418,14 @@ func (h *TicketHandler) ReassignTicket(c echo.Context) error {
 					),
 				)
 			}
+		}
+
+		for _, fileHeader := range files {
+			if fileHeader == nil {
+				continue
+			}
 
 			file, err := fileHeader.Open()
-
 			if err != nil {
 				return echo.NewHTTPError(
 					http.StatusInternalServerError,
@@ -418,32 +438,49 @@ func (h *TicketHandler) ReassignTicket(c echo.Context) error {
 				ticketID,
 			)
 
-			url, err := helper.UploadFile(
+			uploadResult, uploadErr := helper.UploadFile(
 				file,
 				folder,
 				fileHeader.Filename,
 			)
 
-			file.Close()
+			closeErr := file.Close()
 
-			if err != nil {
-				log.Println(
-					"failed upload attachment:",
-					err,
+			if uploadErr != nil {
+				log.Printf(
+					"failed to save reassignment attachment %s: %v",
+					fileHeader.Filename,
+					uploadErr,
 				)
 
 				return echo.NewHTTPError(
 					http.StatusInternalServerError,
-					"failed to upload attachment",
+					"failed to save reassignment attachment locally",
 				)
+			}
+
+			if closeErr != nil {
+				log.Printf(
+					"failed to close reassignment attachment %s: %v",
+					fileHeader.Filename,
+					closeErr,
+				)
+
+				return echo.NewHTTPError(
+					http.StatusInternalServerError,
+					"failed to process reassignment attachment",
+				)
+			}
+
+			attachment := model.TicketReassignmentAttachment{
+				FileName: fileHeader.Filename,
+				FileURL:  uploadResult.SecureURL,
+				PublicID: nil,
 			}
 
 			attachments = append(
 				attachments,
-				model.TicketReassignmentAttachment{
-					FileName: fileHeader.Filename,
-					FileURL:  url.SecureURL,
-				},
+				attachment,
 			)
 		}
 	}
@@ -455,8 +492,13 @@ func (h *TicketHandler) ReassignTicket(c echo.Context) error {
 		req,
 		attachments,
 	)
-
 	if err != nil {
+		log.Printf(
+			"failed to reassign ticket %d: %v",
+			ticketID,
+			err,
+		)
+
 		return echo.NewHTTPError(
 			http.StatusBadRequest,
 			err.Error(),

@@ -49,15 +49,15 @@ func httpServer(cmd *cobra.Command, args []string) {
 		os.Getenv("RABBITMQ_URL"),
 	)
 
-	err = helper.InitCloudinary(
-		config.CloudinaryCloudName(),
-		config.CloudinaryAPIKey(),
-		config.CloudinaryAPISecret(),
-	)
+	// err = helper.InitCloudinary(
+	// 	config.CloudinaryCloudName(),
+	// 	config.CloudinaryAPIKey(),
+	// 	config.CloudinaryAPISecret(),
+	// )
 
-	if err != nil {
-		log.Fatalf("Cloudinary init failed: %v", err)
-	}
+	// if err != nil {
+	// 	log.Fatalf("Cloudinary init failed: %v", err)
+	// }
 
 	postgresDB := db.NewPostgres()
 	sqlDB, err := postgresDB.DB()
@@ -133,6 +133,12 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewDashboardHandler(e, dashboardUsecase)
 	handlerHttp.NewNotificationHandler(e, notificationUsecase)
 	handlerHttp.NewTicketEngineerResolutionHandler(e, ticketResolutionEngineerUsecase)
+
+	if err := os.MkdirAll(helper.UploadDir(), 0750); err != nil {
+		log.Fatalf("Failed to create upload directory: %v", err)
+	}
+
+	e.Static("/uploads", helper.UploadDir())
 
 	wsHandler := ws.NewHandler(hub)
 
