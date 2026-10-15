@@ -1,7 +1,6 @@
 package http
 
 import (
-	"fmt"
 	"net/http"
 	"strconv"
 	"time"
@@ -63,11 +62,14 @@ func (h *TicketResolutionHandler) Create(c echo.Context) error {
 		}
 		defer file.Close()
 
-		folder := fmt.Sprintf("tickets/resolution_%d", ticketID)
+		folder := "tickets/resolution"
 
 		url, err := helper.UploadImage(file, folder)
 		if err != nil {
-			return echo.NewHTTPError(http.StatusInternalServerError, "upload failed")
+			return echo.NewHTTPError(
+				http.StatusInternalServerError,
+				"upload gagal",
+			)
 		}
 
 		attachmentURL = url
