@@ -231,6 +231,12 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 		return err
 	}
 
+	if in.Status == model.StatusCancel {
+		return errors.New(
+			"gunakan endpoint pembatalan tiket untuk mengubah status menjadi CANCEL",
+		)
+	}
+
 	ticket, err := u.ticketRepo.FindByID(ctx, id)
 	if err != nil {
 		log.Error("ticket not found:", err)
@@ -253,7 +259,6 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 
 	if ticket.PausedAt != nil &&
 		(in.Status == model.StatusOpen ||
-			in.Status == model.StatusInProgress ||
 			in.Status == model.StatusResolved) {
 
 		duration := time.Since(*ticket.PausedAt).Seconds()
@@ -266,6 +271,12 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 	if err := u.ticketRepo.Update(ctx, *ticket); err != nil {
 		log.Error("failed update ticket:", err)
 		return err
+	}
+
+	if ticket.Status == model.StatusCancel {
+		return errors.New(
+			"tiket yang sudah dibatalkan tidak dapat diubah statusnya",
+		)
 	}
 
 	if err := u.ticketRepo.RecordStaffFirstResponse(
@@ -404,10 +415,10 @@ func (u *TicketUsecase) Delete(ctx context.Context, id int64) error {
 func isValidStatus(status model.TicketStatus) bool {
 	switch status {
 	case model.StatusOpen,
-		model.StatusInProgress,
 		model.StatusResolved,
 		model.StatusClosed,
-		model.StatusOnHold:
+		model.StatusOnHold,
+		model.StatusCancel:
 		return true
 	default:
 		return false
@@ -1108,4 +1119,189 @@ func (u *TicketUsecase) ReassignToOnlineStaff(ctx context.Context, ticketID int6
 	}
 
 	return ticketResp, nil
+}
+
+func (u *TicketUsecase) CancelTicket(ctx context.Context, id int64, userID int64, role string, in model.CancelTicketInput) error {
+	role = strings.ToUpper(strings.TrimSpace(role))
+
+	if role != "STAFF" && role != "ADMINISTRATOR" {
+		return errors.New(
+			"hanya Staff CCIT dan Administrator yang dapat membatalkan tiket",
+		)
+	}
+
+	reason := strings.TrimSpace(in.Reason)
+
+	if reason == "" {
+		return errors.New("alasan pembatalan tiket wajib diisi")
+	}
+
+	if len(reason) > 1000 {
+		return errors.New("alasan pembatalan maksimal 1000 karakter")
+	}
+
+	ticket, err := u.ticketRepo.FindByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	if ticket.Status == model.StatusClosed {
+		return errors.New("tiket yang sudah CLOSED tidak dapat dibatalkan")
+	}
+
+	if ticket.Status == model.StatusCancel {
+		return errors.New("tiket sudah dibatalkan")
+	}
+
+	totalPaused := ticket.TotalPaused
+
+	if ticket.PausedAt != nil {
+		duration := time.Since(*ticket.PausedAt).Seconds()
+
+		if duration > 0 {
+			totalPaused += int64(duration)
+		}
+	}
+
+	oldStatus := string(ticket.Status)
+	newStatus := string(model.StatusCancel)
+
+	if err := u.ticketRepo.CancelTicket(ctx, id, userID, reason, totalPaused); err != nil {
+		return err
+	}
+
+	statusHistory, historyErr := u.ticketHistoryRepo.Create(
+		ctx,
+		model.TicketHistory{
+			TicketID:  id,
+			UserID:    userID,
+			Action:    "STATUS_UPDATED",
+			FieldName: "status",
+			OldValue:  &oldStatus,
+			NewValue:  &newStatus,
+		},
+	)
+
+	if historyErr != nil {
+		logrus.WithError(historyErr).Error(
+			"gagal menyimpan history status pembatalan tiket",
+		)
+	} else if statusHistory != nil {
+		histories, findErr :=
+			u.ticketHistoryRepo.FindByTicketID(ctx, id)
+
+		if findErr == nil && len(histories) > 0 {
+			latest := histories[0]
+			latest.Type = "STATUS_UPDATED"
+
+			BroadcastTicketHistory(u.hub, latest)
+		}
+	}
+
+	reasonHistory, reasonHistoryErr := u.ticketHistoryRepo.Create(
+		ctx,
+		model.TicketHistory{
+			TicketID:  id,
+			UserID:    userID,
+			Action:    "CANCELLATION_REASON",
+			FieldName: "cancellation_reason",
+			NewValue:  &reason,
+		},
+	)
+
+	if reasonHistoryErr != nil {
+		logrus.WithError(reasonHistoryErr).Error(
+			"gagal menyimpan history alasan pembatalan tiket",
+		)
+	} else if reasonHistory != nil {
+		histories, findErr :=
+			u.ticketHistoryRepo.FindByTicketID(ctx, id)
+
+		if findErr == nil && len(histories) > 0 {
+			latest := histories[0]
+			latest.Type = "CANCELLATION_REASON"
+			latest.Message = latest.NewValue
+
+			BroadcastTicketHistory(u.hub, latest)
+		}
+	}
+
+	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, id)
+	if err != nil {
+		return err
+	}
+
+	ws.BroadcastToRoles(
+		u.hub,
+		[]string{
+			"STAFF",
+			"ADMINISTRATOR",
+			"USER",
+			"ENGINEER",
+			"EXECUTIVE",
+		},
+		ws.Message{
+			Type: ws.EventTicketStatusUpdate,
+			Data: ticketResp,
+		},
+	)
+
+	recipients := []int64{
+		ticket.ReporterID,
+	}
+
+	if ticket.StaffAssignedToID != nil {
+		recipients = append(
+			recipients,
+			*ticket.StaffAssignedToID,
+		)
+	}
+
+	if ticket.AssignedToID != nil {
+		recipients = append(
+			recipients,
+			*ticket.AssignedToID,
+		)
+	}
+
+	seenRecipients := make(map[int64]struct{})
+
+	for _, recipientID := range recipients {
+		if recipientID <= 0 || recipientID == userID {
+			continue
+		}
+
+		if _, exists := seenRecipients[recipientID]; exists {
+			continue
+		}
+
+		seenRecipients[recipientID] = struct{}{}
+
+		notificationErr := helper.PublishNotificationEvent(
+			"ticket.cancelled",
+			model.NotificationEvent{
+				EventType:     string(model.NotificationTicketCancel),
+				UserID:        recipientID,
+				ActorID:       userID,
+				TicketID:      id,
+				TicketCode:    ticket.TicketCode,
+				ReferenceType: string(model.ReferenceTicket),
+				ReferenceID:   id,
+				Title:         "Tiket Dibatalkan",
+				Message: "No Tiket: " + ticket.TicketCode +
+					" | Tiket dibatalkan. Alasan: " + reason,
+			},
+		)
+
+		if notificationErr != nil {
+			logrus.WithFields(logrus.Fields{
+				"ticket_id":    id,
+				"recipient_id": recipientID,
+			}).WithError(notificationErr).Error(
+				"gagal mengirim notifikasi pembatalan tiket",
+			)
+		}
+	}
+
+	return nil
 }

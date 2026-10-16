@@ -91,10 +91,6 @@ func (r *DashboardRepo) GetStatusDistribution(ctx context.Context, filter model.
 		Count(&result.Open)
 
 	base.Session(&gorm.Session{}).
-		Where("status = ?", model.StatusInProgress).
-		Count(&result.InProgress)
-
-	base.Session(&gorm.Session{}).
 		Where("status = ?", model.StatusResolved).
 		Count(&result.Resolved)
 

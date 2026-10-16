@@ -9,11 +9,11 @@ type TicketStatus string
 type TicketPriority string
 
 const (
-	StatusOpen       TicketStatus = "OPEN"
-	StatusInProgress TicketStatus = "IN_PROGRESS"
-	StatusResolved   TicketStatus = "RESOLVED"
-	StatusClosed     TicketStatus = "CLOSED"
-	StatusOnHold     TicketStatus = "ONHOLD"
+	StatusOpen     TicketStatus = "OPEN"
+	StatusResolved TicketStatus = "RESOLVED"
+	StatusClosed   TicketStatus = "CLOSED"
+	StatusOnHold   TicketStatus = "ONHOLD"
+	StatusCancel   TicketStatus = "CANCEL"
 
 	PriorityLow    TicketPriority = "LOW"
 	PriorityMedium TicketPriority = "MEDIUM"
@@ -22,24 +22,27 @@ const (
 )
 
 type Ticket struct {
-	ID           int64          `json:"id"`
-	TicketCode   string         `json:"ticket_code"`
-	ProjectID    int64          `json:"project_id"`
-	LocationID   int64          `json:"location_id"`
-	PartID       int64          `json:"part_id"`
-	AssetID      int64          `json:"asset_id"`
-	ReporterID   int64          `json:"reporter_id"`
-	AssignedToID *int64         `json:"assigned_to_id"`
-	Status       TicketStatus   `json:"status"`
-	Priority     TicketPriority `json:"priority"`
-	Description  string         `json:"description"`
-	OnholdNotes  *string        `json:"onhold_notes"`
-	Attachment   *string        `json:"attachment"`
-	DueAt        time.Time      `json:"due_at"`
-	ResolvedAt   *time.Time     `json:"resolved_at"`
-	PausedAt     *time.Time     `json:"paused_at"`
-	TotalPaused  int64          `json:"total_paused"`
-	Reporter     User           `json:"reporter"`
+	ID                 int64          `json:"id"`
+	TicketCode         string         `json:"ticket_code"`
+	ProjectID          int64          `json:"project_id"`
+	LocationID         int64          `json:"location_id"`
+	PartID             int64          `json:"part_id"`
+	AssetID            int64          `json:"asset_id"`
+	ReporterID         int64          `json:"reporter_id"`
+	AssignedToID       *int64         `json:"assigned_to_id"`
+	Status             TicketStatus   `json:"status"`
+	Priority           TicketPriority `json:"priority"`
+	Description        string         `json:"description"`
+	OnholdNotes        *string        `json:"onhold_notes"`
+	Attachment         *string        `json:"attachment"`
+	DueAt              time.Time      `json:"due_at"`
+	ResolvedAt         *time.Time     `json:"resolved_at"`
+	PausedAt           *time.Time     `json:"paused_at"`
+	TotalPaused        int64          `json:"total_paused"`
+	Reporter           User           `json:"reporter"`
+	CancellationReason *string        `json:"cancellation_reason"`
+	CancelledAt        *time.Time     `json:"cancelled_at"`
+	CancelledByID      *int64         `json:"cancelled_by_id"`
 
 	StaffAssignedToID        *int64     `json:"staff_assigned_to_id"`
 	StaffAssignedAt          *time.Time `json:"staff_assigned_at"`
@@ -69,6 +72,10 @@ type TicketResponse struct {
 	AssetID                  int64                    `json:"asset_id"`
 	ReporterName             string                   `json:"reporter_name"`
 	ReporterID               int64                    `json:"reporter_id"`
+	CancellationReason       *string                  `json:"cancellation_reason"`
+	CancelledAt              *time.Time               `json:"cancelled_at"`
+	CancelledByID            *int64                   `json:"cancelled_by_id"`
+	CancelledByName          string                   `json:"cancelled_by_name"`
 	AssignedToID             *int64                   `json:"assigned_to_id"`
 	AssignedToName           string                   `json:"assigned_to_name"`
 	StaffAssignedToID        *int64                   `json:"staff_assigned_to_id"`
@@ -114,6 +121,9 @@ type TicketExportRow struct {
 	Status                   string     `json:"status"`
 	Description              string     `json:"description"`
 	OnholdNotes              *string    `json:"onhold_notes"`
+	CancellationReason       *string    `json:"cancellation_reason"`
+	CancelledAt              *time.Time `json:"cancelled_at"`
+	CancelledByName          string     `json:"cancelled_by_name"`
 	TicketAttachmentURL      *string    `json:"ticket_attachment_url"`
 	ResolutionCause          *string    `json:"resolution_cause"`
 	ResolutionSolution       *string    `json:"resolution_solution"`
@@ -145,6 +155,10 @@ type UpdateTicketStatusInput struct {
 	OnholdNotes string       `json:"onhold_notes"`
 }
 
+type CancelTicketInput struct {
+	Reason string `json:"reason"`
+}
+
 type ITicketRepository interface {
 	FindAll(ctx context.Context, filter Ticket, search string, startDate string, endDate string, page int, limit int, role string, userID int64) ([]*TicketResponse, int64, error)
 	FindByID(ctx context.Context, id int64) (*Ticket, error)
@@ -156,6 +170,7 @@ type ITicketRepository interface {
 	SetStaffAssignment(ctx context.Context, ticketID int64, staffID int64) error
 	RecordStaffFirstResponse(ctx context.Context, ticketID int64, userID int64) error
 	FindForCustomExport(ctx context.Context, filter Ticket, search string, startDate string, endDate string, role string, userID int64) ([]*TicketExportRow, error)
+	CancelTicket(ctx context.Context, id int64, userID int64, reason string, totalPaused int64) error
 }
 
 type ITicketUsecase interface {
@@ -170,4 +185,5 @@ type ITicketUsecase interface {
 	ResponseTicket(ctx context.Context, ticketID int64, userID int64) error
 	ExportCustom(ctx context.Context, req CustomTicketExportRequest, role string, userID int64) ([]*TicketExportRow, error)
 	ReassignToOnlineStaff(ctx context.Context, ticketID int64, userID int64, justification string) (*TicketResponse, error)
+	CancelTicket(ctx context.Context, id int64, userID int64, role string, in CancelTicketInput) error
 }

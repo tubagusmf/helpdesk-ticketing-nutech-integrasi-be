@@ -17,6 +17,7 @@ const (
 	NotificationTicketClosed             NotificationType = "TICKET_CLOSED"
 	NotificationTicketReassigned         NotificationType = "TICKET_REASSIGNED"
 	NotificationTicketEngineerResolution NotificationType = "TICKET_ENGINEER_RESOLUTION"
+	NotificationTicketCancel             NotificationType = "TICKET_CANCEL"
 )
 
 const (

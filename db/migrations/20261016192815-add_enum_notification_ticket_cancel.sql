@@ -1,0 +1,14 @@
+
+-- +migrate Up
+ALTER TYPE notification_type
+ADD VALUE IF NOT EXISTS 'TICKET_ONHOLD';
+
+ALTER TYPE notification_type
+ADD VALUE IF NOT EXISTS 'TICKET_CANCEL';
+
+-- +migrate Down
+ALTER TYPE notification_type
+DROP VALUE IF EXISTS 'TICKET_ONHOLD';
+
+ALTER TYPE notification_type
+DROP VALUE IF EXISTS 'TICKET_CANCEL';

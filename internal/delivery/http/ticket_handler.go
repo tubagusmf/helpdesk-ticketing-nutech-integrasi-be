@@ -35,6 +35,7 @@ func NewTicketHandler(e *echo.Echo, ticketUsecase model.ITicketUsecase) {
 	group.POST("/:id/response-ticket", handler.ResponseTicket, AuthMiddleware)
 	group.POST("/export-custom", handler.ExportCustom, AuthMiddleware)
 	group.POST("/reassign-staff/:id", handler.ReassignToOnlineStaff, AuthMiddleware)
+	group.POST("/:id/cancel", handler.CancelTicket, AuthMiddleware)
 }
 
 func (h *TicketHandler) Create(c echo.Context) error {
@@ -767,4 +768,78 @@ func (h *TicketHandler) ReassignToOnlineStaff(c echo.Context) error {
 			"data":       ticket,
 		},
 	)
+}
+
+func (h *TicketHandler) CancelTicket(c echo.Context) error {
+	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid ticket id",
+		)
+	}
+
+	claimValue := c.Request().
+		Context().
+		Value(model.BearerAuthKey)
+
+	claim, ok := claimValue.(*model.CustomClaims)
+
+	if !ok || claim == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+	}
+
+	role := strings.ToUpper(strings.TrimSpace(claim.Role))
+
+	if role != "STAFF" && role != "ADMINISTRATOR" {
+		return echo.NewHTTPError(
+			http.StatusForbidden,
+			"hanya Staff CCIT dan Administrator yang dapat membatalkan tiket",
+		)
+	}
+
+	var req model.CancelTicketInput
+
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"request pembatalan tiket tidak valid",
+		)
+	}
+
+	if strings.TrimSpace(req.Reason) == "" {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"alasan pembatalan tiket wajib diisi",
+		)
+	}
+
+	if len(strings.TrimSpace(req.Reason)) > 1000 {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"alasan pembatalan maksimal 1000 karakter",
+		)
+	}
+
+	err = h.ticketUsecase.CancelTicket(
+		c.Request().Context(),
+		ticketID,
+		claim.UserID,
+		role,
+		req,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "ticket cancelled successfully",
+	})
 }

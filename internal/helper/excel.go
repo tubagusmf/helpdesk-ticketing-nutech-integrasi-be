@@ -74,6 +74,15 @@ var customTicketColumns = map[string]CustomExcelColumn{
 	"onhold_notes": {
 		Key: "onhold_notes", Title: "Onhold Notes", Width: 25,
 	},
+	"cancellation_reason": {
+		Key: "cancellation_reason", Title: "Cancellation Reason", Width: 32,
+	},
+	"cancelled_at": {
+		Key: "cancelled_at", Title: "Cancelled At", Width: 22,
+	},
+	"cancelled_by": {
+		Key: "cancelled_by", Title: "Cancelled By", Width: 22,
+	},
 	"attachment": {
 		Key: "attachment", Title: "Ticket Attachment", Width: 24,
 	},
@@ -138,26 +147,32 @@ var ticketHeaders = []string{
 	"Penyebab",
 	"Solusi",
 	"Status",
+	"Alasan Pembatalan",
+	"Waktu Pembatalan",
+	"Dibatalkan Oleh",
 	"Foto Sesudah",
 	"Created At",
 	"Due At",
 }
 
 var ticketColumnWidths = map[string]float64{
-	"A": 18,
-	"B": 18,
-	"C": 17,
-	"D": 15,
-	"E": 18,
-	"F": 18,
-	"G": 12,
-	"H": 28,
-	"I": 22,
-	"J": 26,
-	"K": 14,
-	"L": 22,
-	"M": 18,
-	"N": 18,
+	"A": 18, // Ticket Code
+	"B": 18, // Project
+	"C": 17, // Location
+	"D": 15, // Asset
+	"E": 18, // Reporter
+	"F": 18, // Assigned
+	"G": 12, // Priority
+	"H": 28, // Permasalahan
+	"I": 22, // Penyebab
+	"J": 26, // Solusi
+	"K": 14, // Status
+	"L": 32, // Alasan Pembatalan
+	"M": 22, // Waktu Pembatalan
+	"N": 22, // Dibatalkan Oleh
+	"O": 22, // Foto Sesudah
+	"P": 18, // Created At
+	"Q": 18, // Due At
 }
 
 var statusColors = map[string]string{
@@ -166,6 +181,7 @@ var statusColors = map[string]string{
 	"RESOLVED":    "C6EFCE",
 	"CLOSED":      "D9D9D9",
 	"ONHOLD":      "BDD7EE",
+	"CANCEL":      "F4CCCC",
 }
 
 func downloadImageFromURL(imageURL string) ([]byte, error) {
@@ -487,6 +503,9 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		ticket.CauseName,
 		ticket.SolutionName,
 		ticket.Status,
+		customStringValue(ticket.CancellationReason),
+		customTimeValue(ticket.CancelledAt),
+		ticket.CancelledByName,
 	}
 
 	for index, value := range values {
@@ -522,7 +541,7 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		}
 	}
 
-	imageCell := fmt.Sprintf("L%d", row)
+	imageCell := fmt.Sprintf("O%d", row)
 
 	if err := f.SetCellStyle(
 		sheet,
@@ -560,7 +579,7 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		}
 	}
 
-	createdAtCell := fmt.Sprintf("M%d", row)
+	createdAtCell := fmt.Sprintf("P%d", row)
 	if err := f.SetCellValue(
 		sheet,
 		createdAtCell,
@@ -578,7 +597,7 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		return fmt.Errorf("set created at style: %w", err)
 	}
 
-	dueAtCell := fmt.Sprintf("N%d", row)
+	dueAtCell := fmt.Sprintf("Q%d", row)
 	if err := f.SetCellValue(
 		sheet,
 		dueAtCell,
@@ -786,7 +805,7 @@ func GenerateExcelTickets(tickets []*model.TicketResponse) (*bytes.Buffer, error
 	if excelRow > 2 {
 		if err := f.AutoFilter(
 			sheet,
-			fmt.Sprintf("A1:N%d", excelRow-1),
+			fmt.Sprintf("A1:Q%d", excelRow-1),
 			nil,
 		); err != nil {
 			return nil, fmt.Errorf("set ticket autofilter: %w", err)
@@ -897,6 +916,12 @@ func getCustomTicketValue(ticket *model.TicketExportRow, column string) interfac
 		return ticket.Description
 	case "onhold_notes":
 		return customStringValue(ticket.OnholdNotes)
+	case "cancellation_reason":
+		return customStringValue(ticket.CancellationReason)
+	case "cancelled_at":
+		return customTimeValue(ticket.CancelledAt)
+	case "cancelled_by":
+		return ticket.CancelledByName
 	case "attachment":
 		return customStringValue(ticket.TicketAttachmentURL)
 	case "resolution_cause":
@@ -1216,6 +1241,8 @@ func historyExcelLabel(h *model.TicketHistoryResponse) string {
 		return "Solusi tiket"
 	case "ENGINEER_RESOLUTION":
 		return "Solusi Tim Engineer"
+	case "CANCELLATION_REASON":
+		return "Justifikasi Pembatalan"
 	default:
 		return "Aktivitas lainnya"
 	}
@@ -1269,6 +1296,17 @@ func historyExcelDetail(h *model.TicketHistoryResponse) string {
 			return message
 		}
 		return newValue
+
+	case "CANCELLATION_REASON":
+		if message != "" {
+			return "Alasan pembatalan: " + message
+		}
+
+		if newValue != "" {
+			return "Alasan pembatalan: " + newValue
+		}
+
+		return "Alasan pembatalan tidak tersedia"
 	}
 
 	if message != "" {

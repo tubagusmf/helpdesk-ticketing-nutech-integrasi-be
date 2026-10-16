@@ -83,6 +83,10 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 			LEFT JOIN users AS staff_assigned
 				ON staff_assigned.id = tickets.staff_assigned_to_id
 		`).
+		Joins(`
+			LEFT JOIN users AS cancelled_by
+				ON cancelled_by.id = tickets.cancelled_by_id
+		`).
 		Where(`
 			tickets.deleted_at IS NULL
 		`)
@@ -333,6 +337,10 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		tickets.status,
 		tickets.description,
 		tickets.onhold_notes,
+		tickets.cancellation_reason,
+		tickets.cancelled_at,
+		tickets.cancelled_by_id,
+		cancelled_by.name AS cancelled_by_name,
 
 		tickets.created_at,
 		tickets.due_at,
@@ -504,8 +512,12 @@ func (r *TicketRepo) FindResponseByID(ctx context.Context, id int64) (*model.Tic
         tickets.priority,
         tickets.status,
         tickets.description,
-        tickets.onhold_notes,
-        tickets.created_at,
+		tickets.onhold_notes,
+		tickets.cancellation_reason,
+		tickets.cancelled_at,
+		tickets.cancelled_by_id,
+		cancelled_by.name AS cancelled_by_name,
+		tickets.created_at,
         tickets.due_at,
         tickets.reporter_id,
         tickets.part_id,
@@ -538,6 +550,7 @@ func (r *TicketRepo) FindResponseByID(ctx context.Context, id int64) (*model.Tic
 		Joins("LEFT JOIN asset_ids ON asset_ids.id = tickets.asset_id").
 		Joins("LEFT JOIN users as reporter ON reporter.id = tickets.reporter_id").
 		Joins("LEFT JOIN users as assigned ON assigned.id = tickets.assigned_to_id").
+		Joins(`LEFT JOIN users AS cancelled_by ON cancelled_by.id = tickets.cancelled_by_id`).
 		Where("tickets.id = ?", id).
 		Scan(&ticket).Error
 
@@ -675,6 +688,10 @@ func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticke
 		Joins(`
 			LEFT JOIN users AS staff_assigned
 				ON staff_assigned.id = tickets.staff_assigned_to_id
+		`).
+		Joins(`
+			LEFT JOIN users AS cancelled_by
+				ON cancelled_by.id = tickets.cancelled_by_id
 		`).
 		Where("tickets.deleted_at IS NULL")
 
@@ -822,6 +839,10 @@ func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticke
 			tickets.description,
 			tickets.onhold_notes,
 
+			tickets.cancellation_reason,
+			tickets.cancelled_at,
+			cancelled_by.name AS cancelled_by_name,
+
 			tickets.attachment AS ticket_attachment_url,
 
 			COALESCE(
@@ -899,4 +920,41 @@ func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticke
 	}
 
 	return tickets, nil
+}
+
+func (r *TicketRepo) CancelTicket(ctx context.Context, id int64, userID int64, reason string, totalPaused int64) error {
+	now := time.Now()
+
+	result := r.db.WithContext(ctx).
+		Model(&model.Ticket{}).
+		Where(
+			"id = ? AND deleted_at IS NULL AND status NOT IN ?",
+			id,
+			[]model.TicketStatus{
+				model.StatusClosed,
+				model.StatusCancel,
+			},
+		).
+		Updates(map[string]interface{}{
+			"status":              model.StatusCancel,
+			"cancellation_reason": reason,
+			"cancelled_by_id":     userID,
+			"cancelled_at":        now,
+			"onhold_notes":        nil,
+			"paused_at":           nil,
+			"total_paused":        totalPaused,
+			"updated_at":          now,
+		})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return fmt.Errorf(
+			"tiket tidak ditemukan, sudah CLOSED, atau sudah CANCELLED",
+		)
+	}
+
+	return nil
 }
