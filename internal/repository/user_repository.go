@@ -168,13 +168,27 @@ func (r *UserRepo) FindAll(ctx context.Context, filter model.User, page int, lim
 
 func (r *UserRepo) Update(ctx context.Context, user model.User) error {
 	tx := r.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return tx.Error
+	}
 
 	now := time.Now()
+
+	var codeNameValue interface{}
+
+	if user.CodeName != nil {
+		value := strings.TrimSpace(*user.CodeName)
+
+		if value != "" {
+			codeNameValue = value
+		}
+	}
 
 	if err := tx.Model(&model.User{}).
 		Where("id = ? AND deleted_at IS NULL", user.ID).
 		Updates(map[string]interface{}{
 			"name":       user.Name,
+			"code_name":  codeNameValue,
 			"email":      user.Email,
 			"password":   user.Password,
 			"role_id":    user.RoleID,
@@ -200,7 +214,8 @@ func (r *UserRepo) Update(ctx context.Context, user model.User) error {
 			"updated_at": now,
 		}
 
-		if err := tx.Table("user_projects").Create(userProject).Error; err != nil {
+		if err := tx.Table("user_projects").
+			Create(userProject).Error; err != nil {
 			tx.Rollback()
 			return err
 		}

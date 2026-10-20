@@ -73,6 +73,28 @@ func (u *UserUsecase) Create(ctx context.Context, in model.CreateUserInput) (str
 		return "", err
 	}
 
+	codeName := strings.TrimSpace(in.CodeName)
+
+	if in.RoleID == 2 {
+		if codeName == "" {
+			return "", errors.New(
+				"Code Name wajib diisi untuk Staff / CCIT",
+			)
+		}
+
+		if len([]rune(codeName)) > 20 {
+			return "", errors.New(
+				"Code Name maksimal 20 karakter",
+			)
+		}
+	}
+
+	var codeNamePtr *string
+
+	if in.RoleID == 2 {
+		codeNamePtr = &codeName
+	}
+
 	var projects []model.Project
 	for _, p := range in.Projects {
 		projects = append(projects, model.Project{
@@ -82,6 +104,7 @@ func (u *UserUsecase) Create(ctx context.Context, in model.CreateUserInput) (str
 
 	newUser, err := u.userRepo.Create(ctx, model.User{
 		Name:     in.Name,
+		CodeName: codeNamePtr,
 		Email:    in.Email,
 		Password: hashed,
 		RoleID:   in.RoleID,
@@ -158,6 +181,18 @@ func (u *UserUsecase) Update(ctx context.Context, id int64, in model.UpdateUserI
 	user.Name = in.Name
 	user.Email = in.Email
 	user.RoleID = in.RoleID
+
+	codeName := strings.TrimSpace(in.CodeName)
+
+	if len([]rune(codeName)) > 20 {
+		return errors.New("Code Name maksimal 20 karakter")
+	}
+
+	if user.RoleID == 2 && codeName != "" {
+		user.CodeName = &codeName
+	} else {
+		user.CodeName = nil
+	}
 
 	if in.Password != "" {
 		hashed, err := helper.HashRequestPassword(in.Password)

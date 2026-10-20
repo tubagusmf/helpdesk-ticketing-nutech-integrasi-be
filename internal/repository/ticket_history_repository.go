@@ -29,9 +29,27 @@ func (r *TicketHistoryRepo) FindByTicketID(ctx context.Context, ticketID int64) 
 		Table("ticket_histories th").
 		Select(`
             th.*,
-            u.name AS user_name,
-            old_staff.name AS old_user_name,
-            new_staff.name AS new_user_name
+
+            CASE
+                WHEN u.role_id = 2
+                AND NULLIF(BTRIM(u.code_name), '') IS NOT NULL
+                THEN u.code_name
+                ELSE u.name
+            END AS user_name,
+
+            CASE
+                WHEN old_staff.role_id = 2
+                AND NULLIF(BTRIM(old_staff.code_name), '') IS NOT NULL
+                THEN old_staff.code_name
+                ELSE old_staff.name
+            END AS old_user_name,
+
+            CASE
+                WHEN new_staff.role_id = 2
+                AND NULLIF(BTRIM(new_staff.code_name), '') IS NOT NULL
+                THEN new_staff.code_name
+                ELSE new_staff.name
+            END AS new_user_name
         `).
 		Joins(`
             LEFT JOIN users u

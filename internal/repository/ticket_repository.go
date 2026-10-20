@@ -389,10 +389,21 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		locations.name AS location_name,
 		parts.name AS part_name,
 		asset_ids.name AS asset_code,
-
 		reporter.name AS reporter_name,
-		assigned.name AS assigned_to_name,
-		staff_assigned.name AS staff_assigned_to_name,
+		
+		CASE
+			WHEN assigned.role_id = 2
+			AND NULLIF(BTRIM(assigned.code_name), '') IS NOT NULL
+			THEN assigned.code_name
+			ELSE assigned.name
+		END AS assigned_to_name,
+
+		CASE
+			WHEN staff_assigned.role_id = 2
+			AND NULLIF(BTRIM(staff_assigned.code_name), '') IS NOT NULL
+			THEN staff_assigned.code_name
+			ELSE staff_assigned.name
+		END AS staff_assigned_to_name,
 
 		(
 			SELECT MAX(ter.created_at)
@@ -533,8 +544,14 @@ func (r *TicketRepo) FindResponseByID(ctx context.Context, id int64) (*model.Tic
         locations.name as location_name,
         parts.name as part_name,
         asset_ids.name as asset_code,
-        reporter.name as reporter_name,
-        assigned.name as assigned_to_name,
+        reporter.name AS reporter_name,
+
+		CASE
+			WHEN assigned.role_id = 2
+			AND NULLIF(BTRIM(assigned.code_name), '') IS NOT NULL
+			THEN assigned.code_name
+			ELSE assigned.name
+		END AS assigned_to_name,
 
         (
             SELECT tr.status
@@ -828,21 +845,29 @@ func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticke
 			locations.name AS location_name,
 			parts.name AS part_name,
 			asset_ids.name AS asset_code,
-
 			reporter.name AS reporter_name,
-			assigned.name AS assigned_to_name,
-			staff_assigned.name AS staff_assigned_to_name,
+
+			CASE
+				WHEN assigned.role_id = 2
+				AND NULLIF(BTRIM(assigned.code_name), '') IS NOT NULL
+				THEN assigned.code_name
+				ELSE assigned.name
+			END AS assigned_to_name,
+
+			CASE
+				WHEN staff_assigned.role_id = 2
+				AND NULLIF(BTRIM(staff_assigned.code_name), '') IS NOT NULL
+				THEN staff_assigned.code_name
+				ELSE staff_assigned.name
+			END AS staff_assigned_to_name,
 
 			tickets.priority,
 			tickets.status,
-
 			tickets.description,
 			tickets.onhold_notes,
-
 			tickets.cancellation_reason,
 			tickets.cancelled_at,
 			cancelled_by.name AS cancelled_by_name,
-
 			tickets.attachment AS ticket_attachment_url,
 
 			COALESCE(

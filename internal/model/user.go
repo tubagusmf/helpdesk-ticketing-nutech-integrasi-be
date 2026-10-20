@@ -23,6 +23,7 @@ type CustomClaims struct {
 type User struct {
 	ID                   int64      `json:"id"`
 	Name                 string     `json:"name"`
+	CodeName             *string    `json:"code_name"`
 	Email                string     `json:"email"`
 	Password             string     `json:"-"`
 	RoleID               int64      `json:"role_id"`
@@ -92,6 +93,7 @@ type ProjectPayload struct {
 
 type CreateUserInput struct {
 	Name     string           `json:"name" validate:"required"`
+	CodeName string           `json:"code_name"`
 	Email    string           `json:"email" validate:"required"`
 	Password string           `json:"password" validate:"required,min=3,max=50"`
 	RoleID   int64            `json:"role_id" validate:"required"`
@@ -101,6 +103,7 @@ type CreateUserInput struct {
 
 type UpdateUserInput struct {
 	Name     string           `json:"name" validate:"required"`
+	CodeName string           `json:"code_name"`
 	Email    string           `json:"email" validate:"required"`
 	Password string           `json:"password" validate:"omitempty,min=3,max=50"`
 	RoleID   int64            `json:"role_id" validate:"required"`
