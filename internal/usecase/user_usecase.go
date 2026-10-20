@@ -270,29 +270,29 @@ func (u *UserUsecase) UpdateProfile(ctx context.Context, userID int64, in model.
 	return u.userRepo.Update(ctx, *user)
 }
 
-func (u *UserUsecase) ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*model.UserOfflineSession, error) {
-	justification = strings.TrimSpace(justification)
+// func (u *UserUsecase) ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*model.UserOfflineSession, error) {
+// 	justification = strings.TrimSpace(justification)
 
-	if !isOnline {
-		if justification == "" {
-			return nil, errors.New("justifikasi wajib diisi")
-		}
+// 	if !isOnline {
+// 		if justification == "" {
+// 			return nil, errors.New("justifikasi wajib diisi")
+// 		}
 
-		if len([]rune(justification)) > 1000 {
-			return nil, errors.New(
-				"justifikasi maksimal 1000 karakter",
-			)
-		}
-	}
+// 		if len([]rune(justification)) > 1000 {
+// 			return nil, errors.New(
+// 				"justifikasi maksimal 1000 karakter",
+// 			)
+// 		}
+// 	}
 
-	return u.userRepo.ChangeOnlineStatus(
-		ctx,
-		userID,
-		isOnline,
-		justification,
-	)
-}
+// 	return u.userRepo.ChangeOnlineStatus(
+// 		ctx,
+// 		userID,
+// 		isOnline,
+// 		justification,
+// 	)
+// }
 
-func (u *UserUsecase) GetActiveOfflineSession(ctx context.Context, userID int64) (*model.UserOfflineSession, error) {
-	return u.userRepo.GetActiveOfflineSession(ctx, userID)
-}
+// func (u *UserUsecase) GetActiveOfflineSession(ctx context.Context, userID int64) (*model.UserOfflineSession, error) {
+// 	return u.userRepo.GetActiveOfflineSession(ctx, userID)
+// }

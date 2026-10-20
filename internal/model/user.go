@@ -64,8 +64,8 @@ type IUserRepository interface {
 	Delete(ctx context.Context, id int64) error
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
 	UpdateLastSeen(ctx context.Context, userID int64) error
-	ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*UserOfflineSession, error)
-	GetActiveOfflineSession(ctx context.Context, userID int64) (*UserOfflineSession, error)
+	// ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*UserOfflineSession, error)
+	// GetActiveOfflineSession(ctx context.Context, userID int64) (*UserOfflineSession, error)
 }
 
 type IUserUsecase interface {
@@ -78,8 +78,8 @@ type IUserUsecase interface {
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
 	UpdateLastSeen(ctx context.Context, userID int64) error
 	UpdateProfile(ctx context.Context, userID int64, in UpdateProfileInput) error
-	ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*UserOfflineSession, error)
-	GetActiveOfflineSession(ctx context.Context, userID int64) (*UserOfflineSession, error)
+	// ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*UserOfflineSession, error)
+	// GetActiveOfflineSession(ctx context.Context, userID int64) (*UserOfflineSession, error)
 }
 
 type LoginInput struct {
