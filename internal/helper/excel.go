@@ -90,7 +90,7 @@ var customTicketColumns = map[string]CustomExcelColumn{
 		Key: "resolution_cause", Title: "Resolution Cause", Width: 24,
 	},
 	"resolution_solution": {
-		Key: "resolution_solution", Title: "Resolution Solution", Width: 26,
+		Key: "resolution_solution", Title: "Resolution Solution", Width: 40,
 	},
 	"resolution_notes": {
 		Key: "resolution_notes", Title: "Resolution Notes", Width: 28,

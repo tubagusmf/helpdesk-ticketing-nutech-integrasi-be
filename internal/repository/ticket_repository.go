@@ -376,7 +376,11 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		) AS cause_name,
 
 		(
-			SELECT s.name
+			SELECT COALESCE(
+				NULLIF(BTRIM(tr.custom_solution), ''),
+				s.name,
+				''
+			)
 			FROM ticket_resolutions tr
 			LEFT JOIN solutions s
 				ON s.id = tr.solution_id
@@ -885,7 +889,11 @@ func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticke
 
 			COALESCE(
 				(
-					SELECT s.name
+					SELECT COALESCE(
+						NULLIF(BTRIM(tr.custom_solution), ''),
+						s.name,
+						''
+					)
 					FROM ticket_resolutions tr
 					LEFT JOIN solutions s
 						ON s.id = tr.solution_id

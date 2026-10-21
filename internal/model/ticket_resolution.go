@@ -9,7 +9,8 @@ type TicketResolution struct {
 	ID              int64     `json:"id"`
 	TicketID        int64     `json:"ticket_id"`
 	CauseID         int64     `json:"cause_id"`
-	SolutionID      int64     `json:"solution_id"`
+	SolutionID      *int64    `json:"solution_id"`
+	CustomSolution  string    `json:"custom_solution"`
 	ResolutionNotes string    `json:"resolution_notes"`
 	CompletionTime  time.Time `json:"completion_time"`
 	AttachmentURL   string    `json:"attachment_url"`
@@ -22,7 +23,8 @@ type TicketResolution struct {
 type CreateTicketResolutionInput struct {
 	TicketID        int64        `json:"ticket_id" validate:"required"`
 	CauseID         int64        `json:"cause_id"`
-	SolutionID      int64        `json:"solution_id"`
+	SolutionID      *int64       `json:"solution_id"`
+	CustomSolution  string       `json:"custom_solution"`
 	ResolutionNotes string       `json:"resolution_notes"`
 	CompletionTime  time.Time    `json:"completion_time"`
 	AttachmentURL   string       `json:"attachment_url"`

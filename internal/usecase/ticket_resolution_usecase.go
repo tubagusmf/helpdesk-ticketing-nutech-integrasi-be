@@ -3,6 +3,7 @@ package usecase
 import (
 	"context"
 	"errors"
+	"strings"
 	"time"
 
 	"github.com/sirupsen/logrus"
@@ -42,6 +43,27 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		return nil, errors.New("resolution only allowed for RESOLVED status")
 	}
 
+	solutionID := in.SolutionID
+
+	if solutionID != nil && *solutionID <= 0 {
+		solutionID = nil
+	}
+
+	customSolution := strings.TrimSpace(in.CustomSolution)
+
+	hasDropdownSolution := solutionID != nil
+	hasManualSolution := customSolution != ""
+
+	if in.CauseID <= 0 {
+		return nil, errors.New("penyebab wajib dipilih")
+	}
+
+	if hasDropdownSolution == hasManualSolution {
+		return nil, errors.New(
+			"pilih solusi dari dropdown atau isi solusi manual, jangan keduanya",
+		)
+	}
+
 	var ticket model.Ticket
 	if err := u.db.Where("id = ?", in.TicketID).First(&ticket).Error; err != nil {
 		return nil, err
@@ -56,14 +78,18 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 	}
 
 	completionTime := in.CompletionTime
+
 	if completionTime.IsZero() {
 		completionTime = time.Now()
 	}
 
+	resolvedAt := time.Now()
+
 	resolution := model.TicketResolution{
 		TicketID:        in.TicketID,
 		CauseID:         in.CauseID,
-		SolutionID:      in.SolutionID,
+		SolutionID:      solutionID,
+		CustomSolution:  customSolution,
 		ResolutionNotes: in.ResolutionNotes,
 		CompletionTime:  completionTime,
 		AttachmentURL:   in.AttachmentURL,
@@ -81,6 +107,7 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		Where("id = ?", ticket.ID).
 		Updates(map[string]interface{}{
 			"status":       model.StatusResolved,
+			"resolved_at":  resolvedAt,
 			"paused_at":    nil,
 			"total_paused": ticket.TotalPaused,
 		}).Error; err != nil {

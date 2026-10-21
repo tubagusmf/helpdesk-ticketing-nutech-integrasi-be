@@ -3,6 +3,7 @@ package http
 import (
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -42,14 +43,64 @@ func (h *TicketResolutionHandler) Create(c echo.Context) error {
 	claim := claimValue.(*model.CustomClaims)
 	userID := claim.UserID
 
-	causeID, _ := strconv.ParseInt(c.FormValue("cause_id"), 10, 64)
-	solutionID, _ := strconv.ParseInt(c.FormValue("solution_id"), 10, 64)
+	causeID, err := strconv.ParseInt(c.FormValue("cause_id"), 10, 64)
+	if err != nil || causeID <= 0 {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"penyebab wajib dipilih",
+		)
+	}
+
+	var solutionID *int64
+
+	rawSolutionID := strings.TrimSpace(c.FormValue("solution_id"))
+
+	if rawSolutionID != "" {
+		parsedSolutionID, parseErr := strconv.ParseInt(
+			rawSolutionID,
+			10,
+			64,
+		)
+
+		if parseErr != nil || parsedSolutionID <= 0 {
+			return echo.NewHTTPError(
+				http.StatusBadRequest,
+				"solution_id tidak valid",
+			)
+		}
+
+		solutionID = &parsedSolutionID
+	}
+
+	customSolution := strings.TrimSpace(
+		c.FormValue("custom_solution"),
+	)
+
 	notes := c.FormValue("resolution_notes")
 	completionTimeStr := c.FormValue("completion_time")
 
 	var completionTime time.Time
+
 	if completionTimeStr != "" {
-		completionTime, _ = time.Parse("2006-01-02T15:04", completionTimeStr)
+		loc, err := time.LoadLocation("Asia/Jakarta")
+		if err != nil {
+			return echo.NewHTTPError(
+				http.StatusInternalServerError,
+				"gagal memuat zona waktu Asia/Jakarta",
+			)
+		}
+
+		completionTime, err = time.ParseInLocation(
+			"2006-01-02T15:04",
+			completionTimeStr,
+			loc,
+		)
+		if err != nil {
+			return echo.NewHTTPError(
+				http.StatusBadRequest,
+				"format waktu penyelesaian tidak valid",
+			)
+		}
 	}
 
 	fileHeader, err := c.FormFile("attachment")
@@ -81,6 +132,7 @@ func (h *TicketResolutionHandler) Create(c echo.Context) error {
 		TicketID:        ticketID,
 		CauseID:         causeID,
 		SolutionID:      solutionID,
+		CustomSolution:  customSolution,
 		ResolutionNotes: notes,
 		CompletionTime:  completionTime,
 		AttachmentURL:   attachmentURL,
