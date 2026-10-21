@@ -5,6 +5,12 @@ import (
 	"time"
 )
 
+const (
+	HistoryActionTicketOverdue        = "TICKET_OVERDUE"
+	HistoryActionStaffResponseOverdue = "STAFF_RESPONSE_OVERDUE"
+	HistoryActionStaffResponseLate    = "STAFF_RESPONSE_LATE"
+)
+
 type TicketHistory struct {
 	ID        int64     `json:"id"`
 	TicketID  int64     `json:"ticket_id"`

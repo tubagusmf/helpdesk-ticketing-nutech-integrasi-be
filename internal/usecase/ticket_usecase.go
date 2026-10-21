@@ -95,17 +95,19 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		return nil, false, err
 	}
 
-	var count int64
-	u.db.Model(&model.User{}).
-		Where("role_id = 2 AND is_online = true").
-		Count(&count)
+	var creator model.User
 
-	isAssigned := false
+	if err := u.db.WithContext(ctx).
+		Select("id, role_id").
+		First(&creator, reporterID).Error; err != nil {
+		return nil, false, err
+	}
 
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	now := time.Now().In(loc)
 
 	var dueAt time.Time
+
 	switch in.Priority {
 	case model.PriorityUrgent:
 		dueAt = now.Add(15 * time.Minute)
@@ -117,34 +119,66 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		dueAt = now.Add(4 * time.Hour)
 	}
 
-	project, err := u.projectRepo.FindByID(ctx, in.ProjectID)
+	var assignedToID *int64
+	var staffAssignedToID *int64
+	var staffAssignedAt *time.Time
+
+	isAssigned := false
+
+	if creator.RoleID == 2 {
+		staffID := reporterID
+		assignedAt := now
+
+		assignedToID = &staffID
+		staffAssignedToID = &staffID
+		staffAssignedAt = &assignedAt
+
+		isAssigned = true
+	}
+
+	project, err := u.projectRepo.FindByID(
+		ctx,
+		in.ProjectID,
+	)
 	if err != nil {
 		return nil, false, err
 	}
 
-	seq, err := u.getNextTicketSequence(ctx, project.CodePrefix, in.ProjectID)
+	seq, err := u.getNextTicketSequence(
+		ctx,
+		project.CodePrefix,
+		in.ProjectID,
+	)
 	if err != nil {
 		return nil, false, err
 	}
 
-	ticketCode := generateTicketCode(project.CodePrefix, int(seq))
+	ticketCode := generateTicketCode(
+		project.CodePrefix,
+		int(seq),
+	)
 
 	ticket := model.Ticket{
-		TicketCode:   ticketCode,
-		ProjectID:    in.ProjectID,
-		LocationID:   in.LocationID,
-		PartID:       in.PartID,
-		AssetID:      in.AssetID,
-		ReporterID:   reporterID,
-		Priority:     in.Priority,
-		Description:  in.Description,
-		DueAt:        dueAt,
-		Status:       model.StatusOpen,
-		Attachment:   attachmentPath,
-		AssignedToID: nil,
+		TicketCode:               ticketCode,
+		ProjectID:                in.ProjectID,
+		LocationID:               in.LocationID,
+		PartID:                   in.PartID,
+		AssetID:                  in.AssetID,
+		ReporterID:               reporterID,
+		Priority:                 in.Priority,
+		Description:              in.Description,
+		DueAt:                    dueAt,
+		Status:                   model.StatusOpen,
+		Attachment:               attachmentPath,
+		AssignedToID:             assignedToID,
+		StaffAssignedToID:        staffAssignedToID,
+		StaffAssignedAt:          staffAssignedAt,
+		StaffFirstResponseAt:     nil,
+		StaffResponseTimeSeconds: nil,
 	}
 
-	if err := u.db.WithContext(ctx).Create(&ticket).Error; err != nil {
+	if err := u.db.WithContext(ctx).
+		Create(&ticket).Error; err != nil {
 		return nil, false, err
 	}
 
@@ -163,15 +197,14 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 	)
 
 	if err == nil {
-		histories, err := u.ticketHistoryRepo.FindByTicketID(
-			ctx,
-			history.TicketID,
-		)
+		histories, historyErr :=
+			u.ticketHistoryRepo.FindByTicketID(
+				ctx,
+				history.TicketID,
+			)
 
-		if err == nil && len(histories) > 0 {
-
+		if historyErr == nil && len(histories) > 0 {
 			latest := histories[0]
-
 			latest.Type = "CREATED"
 
 			BroadcastTicketHistory(
@@ -179,6 +212,11 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 				latest,
 			)
 		}
+	} else {
+		logrus.Error(
+			"failed insert CREATED history:",
+			err,
+		)
 	}
 
 	if ticket.AssignedToID != nil {
@@ -192,17 +230,34 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 		)
 	}
 
-	if err != nil {
-		logrus.Error("failed insert CREATED history:", err)
-	}
-
-	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, ticket.ID)
+	ticketResp, err := u.ticketRepo.FindResponseByID(
+		ctx,
+		ticket.ID,
+	)
 	if err != nil {
 		return nil, false, err
 	}
 
-	data, _ := json.Marshal(ticketResp)
-	config.Rdb.LPush(config.Ctx(), "ticket_queue", data)
+	if !isAssigned {
+		data, marshalErr := json.Marshal(ticketResp)
+		if marshalErr != nil {
+			return nil, false, marshalErr
+		}
+
+		if err := config.Rdb.LPush(
+			config.Ctx(),
+			"ticket_queue",
+			data,
+		).Err(); err != nil {
+			logrus.Error("failed enqueue ticket:", err)
+		}
+	} else {
+		logrus.Infof(
+			"[TICKET] ticket %d directly assigned to creator %d",
+			ticket.ID,
+			reporterID,
+		)
+	}
 
 	ws.BroadcastToRoles(
 		u.hub,
@@ -244,6 +299,27 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 	}
 
 	oldStatus := ticket.Status
+	if oldStatus == model.StatusOpen &&
+		!ticket.DueAt.After(time.Now()) {
+
+		message := "Tiket melewati batas penyelesaian SLA."
+
+		if err := u.recordTicketSLAHistory(
+			ctx,
+			ticket.ID,
+			userID,
+			model.HistoryActionTicketOverdue,
+			nil,
+			ticket.DueAt,
+			message,
+		); err != nil {
+			logrus.Errorf(
+				"[SLA HISTORY] failed overdue ticket=%d: %v",
+				ticket.ID,
+				err,
+			)
+		}
+	}
 
 	now := time.Now()
 
@@ -279,12 +355,21 @@ func (u *TicketUsecase) UpdateStatus(ctx context.Context, id int64, userID int64
 		)
 	}
 
+	responseAt := time.Now()
+
 	if err := u.ticketRepo.RecordStaffFirstResponse(
 		ctx,
 		id,
 		userID,
 	); err != nil {
 		log.Error("failed record staff first response:", err)
+	} else {
+		u.recordStaffResponseSLAHistory(
+			ctx,
+			*ticket,
+			userID,
+			responseAt,
+		)
 	}
 
 	oldStatusStr := string(oldStatus)
@@ -700,6 +785,8 @@ func (u *TicketUsecase) ResponseTicket(ctx context.Context, ticketID int64, user
 		return errors.New("ticket sudah diresponse")
 	}
 
+	responseAt := time.Now()
+
 	if err := u.ticketRepo.RecordStaffFirstResponse(
 		ctx,
 		ticketID,
@@ -707,6 +794,13 @@ func (u *TicketUsecase) ResponseTicket(ctx context.Context, ticketID int64, user
 	); err != nil {
 		return err
 	}
+
+	u.recordStaffResponseSLAHistory(
+		ctx,
+		*ticket,
+		userID,
+		responseAt,
+	)
 
 	const responseMessage = "Baik akan ditindak lanjut"
 
@@ -1304,4 +1398,164 @@ func (u *TicketUsecase) CancelTicket(ctx context.Context, id int64, userID int64
 	}
 
 	return nil
+}
+
+func (u *TicketUsecase) recordTicketSLAHistory(ctx context.Context, ticketID int64, userID int64, action string, assignmentKey *string, occurredAt time.Time, message string) error {
+	histories, err := u.ticketHistoryRepo.FindByTicketID(
+		ctx,
+		ticketID,
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, item := range histories {
+		if item.Action != action ||
+			item.FieldName != "sla" {
+			continue
+		}
+
+		sameKey := assignmentKey == nil &&
+			item.OldValue == nil
+
+		if assignmentKey != nil &&
+			item.OldValue != nil &&
+			*item.OldValue == *assignmentKey {
+			sameKey = true
+		}
+
+		if sameKey {
+			return nil
+		}
+	}
+
+	history, err := u.ticketHistoryRepo.Create(
+		ctx,
+		model.TicketHistory{
+			TicketID:  ticketID,
+			UserID:    userID,
+			Action:    action,
+			FieldName: "sla",
+			OldValue:  assignmentKey,
+			NewValue:  &message,
+			CreatedAt: occurredAt,
+		},
+	)
+	if err != nil {
+		return err
+	}
+
+	response := &model.TicketHistoryResponse{
+		ID:        history.ID,
+		TicketID:  history.TicketID,
+		UserID:    history.UserID,
+		UserName:  "System",
+		Type:      mapAction(history.Action, history.FieldName),
+		Action:    history.Action,
+		FieldName: history.FieldName,
+		OldValue:  history.OldValue,
+		NewValue:  history.NewValue,
+		Message:   history.NewValue,
+		CreatedAt: history.CreatedAt,
+	}
+
+	BroadcastTicketHistory(u.hub, response)
+
+	return nil
+}
+
+func (u *TicketUsecase) recordStaffResponseSLAHistory(ctx context.Context, ticket model.Ticket, userID int64, responseAt time.Time) {
+	if ticket.StaffAssignedToID == nil ||
+		*ticket.StaffAssignedToID != userID ||
+		ticket.StaffAssignedAt == nil ||
+		ticket.StaffFirstResponseAt != nil {
+		return
+	}
+
+	assignedAt := *ticket.StaffAssignedAt
+	elapsed := responseAt.Sub(assignedAt)
+
+	if elapsed < 0 {
+		elapsed = 0
+	}
+
+	const responseSLA = 3 * time.Minute
+
+	assignmentKey := assignedAt.UTC().Format(
+		time.RFC3339Nano,
+	)
+
+	if elapsed >= responseSLA {
+		message := "Tiket belum direspons setelah melewati batas SLA respons 3 menit."
+
+		if err := u.recordTicketSLAHistory(
+			ctx,
+			ticket.ID,
+			userID,
+			model.HistoryActionStaffResponseOverdue,
+			&assignmentKey,
+			assignedAt.Add(responseSLA),
+			message,
+		); err != nil {
+			logrus.Errorf(
+				"[SLA HISTORY] failed response overdue ticket=%d: %v",
+				ticket.ID,
+				err,
+			)
+		}
+	}
+
+	if elapsed <= responseSLA {
+		return
+	}
+
+	lateBy := elapsed - responseSLA
+
+	message := fmt.Sprintf(
+		"Ticket telat direspons. Keterlambatan setelah batas SLA 3 menit: %s.",
+		formatSLADuration(lateBy),
+	)
+
+	if err := u.recordTicketSLAHistory(
+		ctx,
+		ticket.ID,
+		userID,
+		model.HistoryActionStaffResponseLate,
+		&assignmentKey,
+		responseAt,
+		message,
+	); err != nil {
+		logrus.Errorf(
+			"[SLA HISTORY] failed late response ticket=%d: %v",
+			ticket.ID,
+			err,
+		)
+	}
+}
+
+func formatSLADuration(duration time.Duration) string {
+	if duration < 0 {
+		duration = 0
+	}
+
+	totalSeconds := int64(
+		duration.Round(time.Second).Seconds(),
+	)
+
+	minutes := totalSeconds / 60
+	seconds := totalSeconds % 60
+
+	if minutes == 0 {
+		return fmt.Sprintf("%d detik", seconds)
+	}
+
+	if seconds == 0 {
+		return fmt.Sprintf("%d menit", minutes)
+	}
+
+	return fmt.Sprintf(
+		"%d menit %d detik",
+		minutes,
+		seconds,
+	)
 }

@@ -1243,6 +1243,12 @@ func historyExcelLabel(h *model.TicketHistoryResponse) string {
 		return "Solusi Tim Engineer"
 	case "CANCELLATION_REASON":
 		return "Justifikasi Pembatalan"
+	case "TICKET_OVERDUE":
+		return "Ticket Overdue"
+	case "STAFF_RESPONSE_OVERDUE":
+		return "Tiket belum direspons"
+	case "STAFF_RESPONSE_LATE":
+		return "Ticket telat diresponse"
 	default:
 		return "Aktivitas lainnya"
 	}
@@ -1307,6 +1313,12 @@ func historyExcelDetail(h *model.TicketHistoryResponse) string {
 		}
 
 		return "Alasan pembatalan tidak tersedia"
+
+	case "TICKET_OVERDUE", "STAFF_RESPONSE_OVERDUE", "STAFF_RESPONSE_LATE":
+		if message != "" {
+			return message
+		}
+		return newValue
 	}
 
 	if message != "" {
@@ -1321,19 +1333,40 @@ func historyExcelDetail(h *model.TicketHistoryResponse) string {
 }
 
 func historyExcelOldValue(h *model.TicketHistoryResponse) string {
-	if h.Type == "STAFF_REASSIGNED" {
+	switch h.Type {
+	case "STAFF_REASSIGNED":
 		return h.OldUserName
+	case "TICKET_OVERDUE", "STAFF_RESPONSE_OVERDUE", "STAFF_RESPONSE_LATE":
+		// old_value is used internally to identify the SLA event,
+		// so it should not be shown as a user-facing old value.
+		return ""
+	default:
+		return historyExcelString(h.OldValue)
 	}
-
-	return historyExcelString(h.OldValue)
 }
 
 func historyExcelNewValue(h *model.TicketHistoryResponse) string {
-	if h.Type == "STAFF_REASSIGNED" {
+	switch h.Type {
+	case "STAFF_REASSIGNED":
 		return h.NewUserName
+	case "TICKET_OVERDUE", "STAFF_RESPONSE_OVERDUE", "STAFF_RESPONSE_LATE":
+		// SLA description is shown in the Detail / Pesan column.
+		return ""
+	default:
+		return historyExcelString(h.NewValue)
 	}
+}
 
-	return historyExcelString(h.NewValue)
+func historyExcelUserName(h *model.TicketHistoryResponse) string {
+	switch h.Type {
+	case "TICKET_OVERDUE", "STAFF_RESPONSE_OVERDUE", "STAFF_RESPONSE_LATE":
+		return "System"
+	default:
+		if strings.TrimSpace(h.UserName) == "" {
+			return "-"
+		}
+		return h.UserName
+	}
 }
 
 func GenerateExcelTicketHistory(ticketCode string, ticketID int64, histories []*model.TicketHistoryResponse) (*bytes.Buffer, error) {
@@ -1520,7 +1553,7 @@ func GenerateExcelTicketHistory(ticketCode string, ticketID int64, histories []*
 			sequence,
 			h.ID,
 			h.CreatedAt.Format("02/01/2006 15:04:05"),
-			h.UserName,
+			historyExcelUserName(h),
 			historyExcelLabel(h),
 			h.Type,
 			h.Action,

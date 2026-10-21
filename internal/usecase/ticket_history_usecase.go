@@ -43,7 +43,10 @@ func (u *TicketHistoryUsecase) FindByTicketID(ctx context.Context, ticketID int6
 			h.Action == "ONHOLD_NOTE" ||
 			h.Action == "ENGINEER_RESOLUTION" ||
 			h.Action == "STAFF_REASSIGNMENT_REASON" ||
-			h.Action == "CANCELLATION_REASON" {
+			h.Action == "CANCELLATION_REASON" ||
+			h.Action == model.HistoryActionTicketOverdue ||
+			h.Action == model.HistoryActionStaffResponseOverdue ||
+			h.Action == model.HistoryActionStaffResponseLate {
 			h.Message = h.NewValue
 		}
 
@@ -108,6 +111,15 @@ func mapAction(action, field string) string {
 
 	case "CANCELLATION_REASON":
 		return "CANCELLATION_REASON"
+
+	case model.HistoryActionTicketOverdue:
+		return "TICKET_OVERDUE"
+
+	case model.HistoryActionStaffResponseOverdue:
+		return "STAFF_RESPONSE_OVERDUE"
+
+	case model.HistoryActionStaffResponseLate:
+		return "STAFF_RESPONSE_LATE"
 	}
 
 	return "OTHER"

@@ -20,10 +20,7 @@ type TicketWorker struct {
 	hub *ws.Hub
 }
 
-func NewTicketWorker(
-	db *gorm.DB,
-	hub *ws.Hub,
-) *TicketWorker {
+func NewTicketWorker(db *gorm.DB, hub *ws.Hub) *TicketWorker {
 	return &TicketWorker{
 		db:  db,
 		hub: hub,
@@ -31,21 +28,241 @@ func NewTicketWorker(
 }
 
 func (w *TicketWorker) Start() {
+	go w.monitorSLAHistory()
+
 	for {
-		result, err := config.Rdb.BRPop(context.Background(), 0, "ticket_queue").Result()
+		result, err := config.Rdb.BRPop(
+			context.Background(),
+			0,
+			"ticket_queue",
+		).Result()
+
 		if err != nil {
 			log.Println("Redis error:", err)
 			continue
 		}
 
 		var ticket model.Ticket
-		json.Unmarshal([]byte(result[1]), &ticket)
+
+		if err := json.Unmarshal(
+			[]byte(result[1]),
+			&ticket,
+		); err != nil {
+			log.Println("Invalid ticket queue payload:", err)
+			continue
+		}
 
 		w.process(ticket)
 	}
 }
 
+func (w *TicketWorker) monitorSLAHistory() {
+	w.checkSLAHistory()
+
+	ticker := time.NewTicker(15 * time.Second)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		w.checkSLAHistory()
+	}
+}
+
+func (w *TicketWorker) checkSLAHistory() {
+	now := time.Now()
+
+	var tickets []model.Ticket
+
+	err := w.db.
+		Where("deleted_at IS NULL").
+		Where("status = ?", model.StatusOpen).
+		Where(`
+            due_at <= ?
+            OR (
+                staff_assigned_at IS NOT NULL
+                AND staff_first_response_at IS NULL
+                AND staff_assigned_at <= ?
+            )
+        `,
+			now,
+			now.Add(-3*time.Minute),
+		).
+		Find(&tickets).Error
+
+	if err != nil {
+		log.Println("[SLA HISTORY] failed load tickets:", err)
+		return
+	}
+
+	for _, ticket := range tickets {
+		actorID := ticket.ReporterID
+
+		if ticket.StaffAssignedToID != nil {
+			actorID = *ticket.StaffAssignedToID
+		} else if ticket.AssignedToID != nil {
+			actorID = *ticket.AssignedToID
+		}
+
+		// 1. Ticket melewati due_at.
+		if !ticket.DueAt.After(now) {
+			message := "Tiket melewati batas penyelesaian SLA."
+
+			if err := w.recordSLAHistory(
+				ticket,
+				actorID,
+				model.HistoryActionTicketOverdue,
+				nil,
+				ticket.DueAt,
+				message,
+			); err != nil {
+				log.Println(
+					"[SLA HISTORY] overdue:",
+					ticket.ID,
+					err,
+				)
+			}
+		}
+
+		if ticket.StaffAssignedToID == nil ||
+			ticket.StaffAssignedAt == nil ||
+			ticket.StaffFirstResponseAt != nil {
+			continue
+		}
+
+		responseDeadline := ticket.StaffAssignedAt.Add(
+			3 * time.Minute,
+		)
+
+		if now.Before(responseDeadline) {
+			continue
+		}
+
+		assignmentKey := ticket.StaffAssignedAt.
+			UTC().
+			Format(time.RFC3339Nano)
+
+		message := "Tiket belum direspons setelah melewati batas SLA respons 3 menit."
+
+		if err := w.recordSLAHistory(
+			ticket,
+			actorID,
+			model.HistoryActionStaffResponseOverdue,
+			&assignmentKey,
+			responseDeadline,
+			message,
+		); err != nil {
+			log.Println(
+				"[SLA HISTORY] response overdue:",
+				ticket.ID,
+				err,
+			)
+		}
+	}
+}
+
+func (w *TicketWorker) recordSLAHistory(ticket model.Ticket, actorID int64, action string, oldValue *string, occurredAt time.Time, message string) error {
+	ctx := context.Background()
+
+	query := w.db.WithContext(ctx).
+		Model(&model.TicketHistory{}).
+		Where("ticket_id = ?", ticket.ID).
+		Where("action = ?", action).
+		Where("field_name = ?", "sla")
+
+	if oldValue == nil {
+		query = query.Where("old_value IS NULL")
+	} else {
+		query = query.Where("old_value = ?", *oldValue)
+	}
+
+	var count int64
+
+	if err := query.Count(&count).Error; err != nil {
+		return err
+	}
+
+	if count > 0 {
+		return nil
+	}
+
+	history := model.TicketHistory{
+		TicketID:  ticket.ID,
+		UserID:    actorID,
+		Action:    action,
+		FieldName: "sla",
+		OldValue:  oldValue,
+		NewValue:  &message,
+		CreatedAt: occurredAt,
+	}
+
+	if err := w.db.WithContext(ctx).
+		Create(&history).Error; err != nil {
+		return err
+	}
+
+	// Kirim aktivitas ke frontend melalui WebSocket.
+	response := model.TicketHistoryResponse{
+		ID:        history.ID,
+		TicketID:  history.TicketID,
+		UserID:    history.UserID,
+		UserName:  "System",
+		Type:      action,
+		Action:    action,
+		FieldName: history.FieldName,
+		OldValue:  history.OldValue,
+		NewValue:  history.NewValue,
+		Message:   history.NewValue,
+		CreatedAt: history.CreatedAt,
+	}
+
+	ws.BroadcastToRoles(
+		w.hub,
+		[]string{
+			"ADMINISTRATOR",
+			"STAFF",
+			"USER",
+			"EXECUTIVE",
+			"ENGINEER",
+		},
+		ws.Message{
+			Type: "TICKET_HISTORY",
+			Data: response,
+		},
+	)
+
+	log.Printf(
+		"[SLA HISTORY] ticket=%d action=%s",
+		ticket.ID,
+		action,
+	)
+
+	return nil
+}
+
 func (w *TicketWorker) process(ticket model.Ticket) {
+	var currentTicket model.Ticket
+
+	err := w.db.
+		Select("id, assigned_to_id").
+		First(&currentTicket, ticket.ID).Error
+
+	if err != nil {
+		log.Printf(
+			"[WORKER] failed to load ticket %d: %v",
+			ticket.ID,
+			err,
+		)
+		return
+	}
+
+	if currentTicket.AssignedToID != nil {
+		log.Printf(
+			"[WORKER] ticket %d already assigned to %d, skip",
+			ticket.ID,
+			*currentTicket.AssignedToID,
+		)
+		return
+	}
+
 	var staffs []model.User
 	w.db.Where("role_id = 2 AND is_online = true").Find(&staffs)
 
@@ -167,7 +384,7 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 		return
 	}
 
-	err := w.db.Model(&model.User{}).
+	err = w.db.Model(&model.User{}).
 		Where("id = ?", selected.ID).
 		Update("last_ticket_assigned_at", nowAssign).Error
 
@@ -199,14 +416,26 @@ func (w *TicketWorker) process(ticket model.Ticket) {
         tickets.staff_assigned_at,
         tickets.staff_first_response_at,
         tickets.staff_response_time_seconds,
+		reporter.name AS reporter_name,
 
-		reporter.name as reporter_name,
-		assigned.name as assigned_to_name,
-		staff_assigned.name as staff_assigned_to_name,
-		projects.name as project_name,
-		locations.name as location_name,
-		parts.name as part_name,
-		asset_ids.name as asset_code
+		CASE
+			WHEN assigned.role_id = 2
+			AND NULLIF(BTRIM(assigned.code_name), '') IS NOT NULL
+			THEN assigned.code_name
+			ELSE assigned.name
+		END AS assigned_to_name,
+
+		CASE
+			WHEN staff_assigned.role_id = 2
+			AND NULLIF(BTRIM(staff_assigned.code_name), '') IS NOT NULL
+			THEN staff_assigned.code_name
+			ELSE staff_assigned.name
+		END AS staff_assigned_to_name,
+
+		projects.name AS project_name,
+		locations.name AS location_name,
+		parts.name AS part_name,
+		asset_ids.name AS asset_code
 	`).
 		Joins(`
 		LEFT JOIN users reporter
