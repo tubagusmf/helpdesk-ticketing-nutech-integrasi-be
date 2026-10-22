@@ -82,6 +82,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	notificationRepo := repository.NewNotificationRepo(postgresDB)
 	ticketReassignRepo := repository.NewTicketReassignmentRepo(postgresDB)
 	ticketResolutionEngineerRepo := repository.NewTicketEngineerResolutionRepo(postgresDB)
+	appSettingRepo := repository.NewAppSettingRepo(postgresDB)
 
 	hub := ws.NewHub()
 
@@ -102,6 +103,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	dashboardUsecase := usecase.NewDashboardUsecase(dashboardRepo)
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo)
 	ticketResolutionEngineerUsecase := usecase.NewTicketEngineerResolutionUsecase(postgresDB, ticketResolutionEngineerRepo, ticketReassignRepo, ticketRepo, userRepo, ticketHistoryRepo, hub)
+	appSettingUsecase := usecase.NewAppSettingUsecase(appSettingRepo)
 
 	ticketWorker := worker.NewTicketWorker(postgresDB, hub)
 	go ticketWorker.Start()
@@ -133,6 +135,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewDashboardHandler(e, dashboardUsecase)
 	handlerHttp.NewNotificationHandler(e, notificationUsecase)
 	handlerHttp.NewTicketEngineerResolutionHandler(e, ticketResolutionEngineerUsecase)
+	handlerHttp.NewAppSettingHandler(e, appSettingUsecase)
 
 	if err := os.MkdirAll(helper.UploadDir(), 0750); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)
