@@ -36,6 +36,12 @@ func (u *UserUsecase) Login(ctx context.Context, in model.LoginInput) (string, e
 		return "", err
 	}
 
+	if !helper.VerifyLoginCaptcha(in.CaptchaID, in.CaptchaCode) {
+		return "", errors.New(
+			"kode CAPTCHA salah",
+		)
+	}
+
 	user, err := u.userRepo.FindByEmail(ctx, in.Email)
 	if err != nil {
 		return "", errors.New("email or password is incorrect")

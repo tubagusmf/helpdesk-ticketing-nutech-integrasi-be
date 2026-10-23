@@ -33,6 +33,7 @@ func NewUserHandler(e *echo.Echo, userUsecase model.IUserUsecase) {
 	group.PUT("/logout", handler.Logout)
 	group.GET("/profile", handler.Profile, AuthMiddleware)
 	group.PUT("/profile", handler.UpdateProfile, AuthMiddleware)
+	group.GET("/captcha", handler.GenerateLoginCaptchaHandler)
 	// group.GET("/online-status/session", handler.GetActiveOfflineSession, AuthMiddleware)
 }
 
@@ -338,6 +339,23 @@ func (h *UserHandler) UpdateProfile(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "profile updated successfully",
+	})
+}
+
+func (h *UserHandler) GenerateLoginCaptchaHandler(c echo.Context) error {
+	captchaID, captchaImage, err :=
+		helper.GenerateLoginCaptcha()
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			"Gagal membuat kode CAPTCHA",
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"captcha_id":    captchaID,
+		"captcha_image": captchaImage,
 	})
 }
 
