@@ -38,7 +38,7 @@ func (u *UserUsecase) Login(ctx context.Context, in model.LoginInput) (string, e
 
 	if !helper.VerifyLoginCaptcha(in.CaptchaID, in.CaptchaCode) {
 		return "", errors.New(
-			"kode CAPTCHA salah",
+			"Kode CAPTCHA Salah",
 		)
 	}
 

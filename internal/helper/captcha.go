@@ -1,6 +1,7 @@
 package helper
 
 import (
+	"image/color"
 	"strings"
 
 	base64Captcha "github.com/mojocn/base64Captcha"
@@ -10,16 +11,20 @@ var loginCaptchaStore = base64Captcha.DefaultMemStore
 
 func GenerateLoginCaptcha() (string, string, error) {
 	driver := base64Captcha.NewDriverString(
-		48,
-		180,
-		2,
-		base64Captcha.OptionShowSineLine|
-			base64Captcha.OptionShowSlimeLine,
-		5,
+		60,  // tinggi gambar
+		220, // lebar gambar
+		0,   // tanpa noise tambahan
+		0,   // tanpa garis pengganggu
+		5,   // panjang kode
 		"23456789abcdefghjkmnpqrstuvwxyz",
-		nil,
-		nil,
-		nil,
+		&color.RGBA{
+			R: 245,
+			G: 247,
+			B: 250,
+			A: 255,
+		},
+		nil, // gunakan font bawaan
+		nil, // gunakan kumpulan font default
 	)
 
 	generator := base64Captcha.NewCaptcha(
