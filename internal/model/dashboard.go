@@ -11,6 +11,7 @@ type DashboardSummary struct {
 	TicketOnHold      int64   `json:"ticket_onhold"`
 	TicketResolved    int64   `json:"ticket_resolved"`
 	TicketClosed      int64   `json:"ticket_closed"`
+	TicketCancel      int64   `json:"ticket_cancel"`
 	SLABreach         int64   `json:"sla_breach"`
 	AvgResolutionTime float64 `json:"avg_resolution_time"`
 }
@@ -20,6 +21,7 @@ type DashboardFilter struct {
 	PartID    int64  `json:"part_id"`
 	StartDate string `json:"start_date"`
 	EndDate   string `json:"end_date"`
+	Period    string `json:"period"`
 	UserID    int64  `json:"user_id"`
 	Role      string `json:"role"`
 }
@@ -35,6 +37,7 @@ type StatusDistribution struct {
 	Resolved   int64 `json:"resolved"`
 	Closed     int64 `json:"closed"`
 	OnHold     int64 `json:"onhold"`
+	Cancel     int64 `json:"cancel"`
 }
 
 type PriorityDistribution struct {
@@ -107,7 +110,9 @@ type DashboardStaffReassignSummary struct {
 type DashboardStaffOfflineSummary struct {
 	StaffID                      int64      `json:"staff_id"`
 	StaffName                    string     `json:"staff_name"`
+	CodeName                     *string    `json:"code_name"`
 	IsOnline                     bool       `json:"is_online"`
+	LastSeen                     *time.Time `json:"last_seen"`
 	OfflineSessionCount          int64      `json:"offline_session_count"`
 	TotalDurationSeconds         int64      `json:"total_duration_seconds"`
 	AverageDurationSeconds       float64    `json:"average_duration_seconds"`

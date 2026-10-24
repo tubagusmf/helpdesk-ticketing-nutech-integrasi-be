@@ -2,6 +2,7 @@ package repository
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
@@ -49,6 +50,10 @@ func (r *DashboardRepo) GetSummary(ctx context.Context, filter model.DashboardFi
 	base.Session(&gorm.Session{}).
 		Where("status = ?", model.StatusClosed).
 		Count(&result.TicketClosed)
+
+	base.Session(&gorm.Session{}).
+		Where("status = ?", model.StatusCancel).
+		Count(&result.TicketCancel)
 
 	base.Session(&gorm.Session{}).
 		Where(
@@ -101,6 +106,10 @@ func (r *DashboardRepo) GetStatusDistribution(ctx context.Context, filter model.
 	base.Session(&gorm.Session{}).
 		Where("status = ?", model.StatusOnHold).
 		Count(&result.OnHold)
+
+	base.Session(&gorm.Session{}).
+		Where("status = ?", model.StatusCancel).
+		Count(&result.Cancel)
 
 	return result, nil
 }
@@ -354,20 +363,64 @@ func (r *DashboardRepo) GetIncidentTrend(ctx context.Context, filter model.Dashb
 
 	db := r.baseQuery(ctx, filter)
 
+	period := strings.ToLower(
+		strings.TrimSpace(filter.Period),
+	)
+
+	if period == "" {
+		period = "month"
+	}
+
+	units := map[string]string{
+		"day":   "day",
+		"week":  "week",
+		"month": "month",
+		"year":  "year",
+	}
+
+	unit, ok := units[period]
+	if !ok {
+		unit = "month"
+		period = "month"
+	}
+
+	lookbackStart := map[string]string{
+		"day": `
+            DATE_TRUNC('day', CURRENT_TIMESTAMP)
+            - INTERVAL '29 days'
+        `,
+		"week": `
+            DATE_TRUNC('week', CURRENT_TIMESTAMP)
+            - INTERVAL '11 weeks'
+        `,
+		"month": `
+            DATE_TRUNC('month', CURRENT_TIMESTAMP)
+            - INTERVAL '11 months'
+        `,
+		"year": `
+            DATE_TRUNC('year', CURRENT_TIMESTAMP)
+            - INTERVAL '4 years'
+        `,
+	}
+
+	if filter.Period != "" &&
+		filter.StartDate == "" &&
+		filter.EndDate == "" {
+		db = db.Where(
+			"tickets.created_at >= " + lookbackStart[period],
+		)
+	}
+
+	bucketExpr := "DATE_TRUNC('" +
+		unit +
+		"', tickets.created_at)"
+
 	err := db.
-		Select(`
-			TO_CHAR(
-				DATE_TRUNC('month', tickets.created_at),
-				'YYYY-MM'
-			) AS date,
-			COUNT(tickets.id) AS total
-		`).
-		Group(`
-			DATE_TRUNC('month', tickets.created_at)
-		`).
-		Order(`
-			DATE_TRUNC('month', tickets.created_at) ASC
-		`).
+		Select(
+			"TO_CHAR(" + bucketExpr + ", 'YYYY-MM-DD') AS date, COUNT(tickets.id) AS total",
+		).
+		Group(bucketExpr).
+		Order(bucketExpr + " ASC").
 		Scan(&result).Error
 
 	if err != nil {
@@ -482,6 +535,7 @@ func (r *DashboardRepo) GetProjectSummary(ctx context.Context, filter model.Dash
 		Where("projects.deleted_at IS NULL")
 
 	db = applyFilter(db, filter)
+	db = applyCurrentPeriodFilter(db, filter.Period)
 
 	err := db.
 		Select(`
@@ -540,6 +594,7 @@ func (r *DashboardRepo) GetStaffSummary(ctx context.Context, filter model.Dashbo
 		Where("staff.role_id = ?", 2)
 
 	db = applyFilter(db, filter)
+	db = applyCurrentPeriodFilter(db, filter.Period)
 
 	if filter.Role == "STAFF" {
 		db = db.Where(
@@ -756,7 +811,9 @@ func (r *DashboardRepo) GetStaffOfflineSummary(ctx context.Context, filter model
 		Select(`
             staff.id AS staff_id,
             staff.name AS staff_name,
+			staff.code_name AS code_name,
             staff.is_online AS is_online,
+			staff.last_seen AS last_seen,
 
             COUNT(us.id) AS offline_session_count,
 
@@ -855,7 +912,9 @@ func (r *DashboardRepo) GetStaffOfflineSummary(ctx context.Context, filter model
 		Group(`
             staff.id,
             staff.name,
-            staff.is_online
+			staff.code_name,
+            staff.is_online,
+			staff.last_seen
         `).
 		Order(`
             staff.is_online ASC,
@@ -869,4 +928,38 @@ func (r *DashboardRepo) GetStaffOfflineSummary(ctx context.Context, filter model
 	}
 
 	return result, nil
+}
+
+func applyCurrentPeriodFilter(db *gorm.DB, period string) *gorm.DB {
+	switch strings.ToLower(strings.TrimSpace(period)) {
+	case "day":
+		db = db.Where(
+			"tickets.created_at >= DATE_TRUNC('day', CURRENT_TIMESTAMP)",
+		).Where(
+			"tickets.created_at < DATE_TRUNC('day', CURRENT_TIMESTAMP) + INTERVAL '1 day'",
+		)
+
+	case "week":
+		db = db.Where(
+			"tickets.created_at >= DATE_TRUNC('week', CURRENT_TIMESTAMP)",
+		).Where(
+			"tickets.created_at < DATE_TRUNC('week', CURRENT_TIMESTAMP) + INTERVAL '1 week'",
+		)
+
+	case "month":
+		db = db.Where(
+			"tickets.created_at >= DATE_TRUNC('month', CURRENT_TIMESTAMP)",
+		).Where(
+			"tickets.created_at < DATE_TRUNC('month', CURRENT_TIMESTAMP) + INTERVAL '1 month'",
+		)
+
+	case "year":
+		db = db.Where(
+			"tickets.created_at >= DATE_TRUNC('year', CURRENT_TIMESTAMP)",
+		).Where(
+			"tickets.created_at < DATE_TRUNC('year', CURRENT_TIMESTAMP) + INTERVAL '1 year'",
+		)
+	}
+
+	return db
 }

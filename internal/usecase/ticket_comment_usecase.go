@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
@@ -16,6 +17,18 @@ type TicketCommentUsecase struct {
 	ticketHistoryRepo model.ITicketHistoryRepository
 	ticketRepo        model.ITicketRepository
 	wsHub             *ws.Hub
+}
+
+func commentAuthorDisplayName(user model.User) string {
+	if user.RoleID == 2 && user.CodeName != nil {
+		codeName := strings.TrimSpace(*user.CodeName)
+
+		if codeName != "" {
+			return codeName
+		}
+	}
+
+	return user.Name
 }
 
 func NewTicketCommentUsecase(repo model.ITicketCommentRepository, ticketHistoryRepo model.ITicketHistoryRepository, ticketRepo model.ITicketRepository, wsHub *ws.Hub) model.ITicketCommentUsecase {
@@ -72,7 +85,7 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 				"id":         result.ID,
 				"ticket_id":  result.TicketID,
 				"user_id":    result.UserID,
-				"user_name":  result.User.Name,
+				"user_name":  commentAuthorDisplayName(result.User),
 				"message":    result.Message,
 				"created_at": result.CreatedAt,
 			},

@@ -39,7 +39,12 @@ func (r *TicketCommentRepo) FindByTicketID(ctx context.Context, ticketID int64) 
 			ticket_comments.id,
 			ticket_comments.ticket_id,
 			ticket_comments.user_id,
-			users.name as user_name,
+			CASE
+				WHEN users.role_id = 2
+					AND NULLIF(TRIM(users.code_name), '') IS NOT NULL
+				THEN TRIM(users.code_name)
+				ELSE users.name
+			END AS user_name,
 			ticket_comments.message,
 			ticket_comments.created_at
 		`).

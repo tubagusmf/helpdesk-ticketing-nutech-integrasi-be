@@ -63,11 +63,25 @@ func (h *DashboardHandler) buildFilter(c echo.Context) (model.DashboardFilter, e
 		c.Request().Context(),
 	)
 
+	period := strings.ToLower(
+		strings.TrimSpace(c.QueryParam("period")),
+	)
+
+	switch period {
+	case "", "day", "week", "month", "year":
+	default:
+		return model.DashboardFilter{}, echo.NewHTTPError(
+			http.StatusBadRequest,
+			"period harus day, week, month, atau year",
+		)
+	}
+
 	filter := model.DashboardFilter{
 		ProjectID: projectID,
 		PartID:    partID,
 		StartDate: c.QueryParam("start_date"),
 		EndDate:   c.QueryParam("end_date"),
+		Period:    period,
 	}
 
 	if claims != nil {
