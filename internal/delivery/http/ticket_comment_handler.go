@@ -1,11 +1,13 @@
 package http
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
+	"gorm.io/gorm"
 )
 
 type TicketCommentHandler struct {
@@ -23,6 +25,7 @@ func NewTicketCommentHandler(e *echo.Echo, u model.ITicketCommentUsecase, ticket
 	group.POST("/:id/comments", handler.Create, AuthMiddleware)
 	group.GET("/:id/comments", handler.GetByTicketID, AuthMiddleware)
 	group.PUT("/:id/comments/read", handler.MarkAsRead, AuthMiddleware)
+	group.DELETE("/:id/comments/:commentID", handler.Delete, AuthMiddleware)
 }
 
 func (h *TicketCommentHandler) Create(c echo.Context) error {
@@ -126,5 +129,57 @@ func (h *TicketCommentHandler) MarkAsRead(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, map[string]interface{}{
 		"message": "comments marked as read",
+	})
+}
+
+func (h *TicketCommentHandler) Delete(c echo.Context) error {
+	ctx := c.Request().Context()
+
+	ticketID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid ticket id",
+		)
+	}
+
+	commentID, err := strconv.ParseInt(c.Param("commentID"), 10, 64)
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"invalid comment id",
+		)
+	}
+
+	claims, ok := ctx.Value(model.BearerAuthKey).(*model.CustomClaims)
+	if !ok || claims == nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"unauthorized",
+		)
+	}
+
+	err = h.usecase.Delete(
+		ctx,
+		ticketID,
+		commentID,
+		claims.UserID,
+	)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(
+				http.StatusNotFound,
+				"Komentar tidak ditemukan atau bukan milik Anda",
+			)
+		}
+
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			"Gagal menghapus komentar",
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{
+		"message": "Komentar berhasil dihapus",
 	})
 }

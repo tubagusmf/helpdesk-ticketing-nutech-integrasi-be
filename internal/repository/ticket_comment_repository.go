@@ -107,3 +107,24 @@ func (r *TicketCommentRepo) MarkAsRead(ctx context.Context, ticketID int64, role
 		Where("ticket_id = ?", ticketID).
 		Updates(updates).Error
 }
+
+func (r *TicketCommentRepo) DeleteByID(ctx context.Context, ticketID int64, commentID int64, userID int64) error {
+	result := r.db.WithContext(ctx).
+		Where(
+			"id = ? AND ticket_id = ? AND user_id = ?",
+			commentID,
+			ticketID,
+			userID,
+		).
+		Delete(&model.TicketComment{})
+
+	if result.Error != nil {
+		return result.Error
+	}
+
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+
+	return nil
+}

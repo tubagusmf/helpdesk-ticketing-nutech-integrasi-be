@@ -180,3 +180,43 @@ func (u *TicketCommentUsecase) FindByTicketID(ctx context.Context, ticketID int6
 func (u *TicketCommentUsecase) MarkAsRead(ctx context.Context, ticketID int64, role string) error {
 	return u.repo.MarkAsRead(ctx, ticketID, role)
 }
+
+func (u *TicketCommentUsecase) Delete(ctx context.Context, ticketID int64, commentID int64, userID int64) error {
+	log := logrus.WithFields(logrus.Fields{
+		"ticket_id":  ticketID,
+		"comment_id": commentID,
+		"user_id":    userID,
+	})
+
+	err := u.repo.DeleteByID(
+		ctx,
+		ticketID,
+		commentID,
+		userID,
+	)
+	if err != nil {
+		log.Error("Failed to delete ticket comment: ", err)
+		return err
+	}
+
+	ws.BroadcastToRoles(
+		u.wsHub,
+		[]string{
+			"ADMINISTRATOR",
+			"STAFF",
+			"USER",
+			"EXECUTIVE",
+			"ENGINEER",
+		},
+		websocket.Message{
+			Type: websocket.EventCommentDeleted,
+			Data: map[string]interface{}{
+				"id":        commentID,
+				"ticket_id": ticketID,
+				"user_id":   userID,
+			},
+		},
+	)
+
+	return nil
+}

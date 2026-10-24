@@ -31,10 +31,12 @@ type ITicketCommentRepository interface {
 	FindByTicketID(ctx context.Context, ticketID int64) ([]*TicketCommentResponse, error)
 	CountUnreadByTicket(ctx context.Context, ticketID int64, role string, userID int64) (int64, error)
 	MarkAsRead(ctx context.Context, ticketID int64, role string) error
+	DeleteByID(ctx context.Context, ticketID int64, commentID int64, userID int64) error
 }
 
 type ITicketCommentUsecase interface {
 	Create(ctx context.Context, comment TicketComment) (*TicketComment, error)
 	FindByTicketID(ctx context.Context, ticketID int64) ([]*TicketCommentResponse, error)
 	MarkAsRead(ctx context.Context, ticketID int64, role string) error
+	Delete(ctx context.Context, ticketID int64, commentID int64, userID int64) error
 }
