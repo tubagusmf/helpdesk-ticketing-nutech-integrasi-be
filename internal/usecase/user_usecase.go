@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/sirupsen/logrus"
@@ -243,8 +244,8 @@ func (u *UserUsecase) UpdateOnlineStatus(ctx context.Context, userID int64, isOn
 	return u.userRepo.UpdateOnlineStatus(ctx, userID, isOnline)
 }
 
-func (u *UserUsecase) UpdateLastSeen(ctx context.Context, userID int64) error {
-	return u.userRepo.UpdateLastSeen(ctx, userID)
+func (u *UserUsecase) UpdateHeartbeat(ctx context.Context, userID int64) error {
+	return u.userRepo.UpdateHeartbeat(ctx, userID)
 }
 
 func (u *UserUsecase) UpdateProfile(ctx context.Context, userID int64, in model.UpdateProfileInput) error {
@@ -274,6 +275,10 @@ func (u *UserUsecase) UpdateProfile(ctx context.Context, userID int64, in model.
 	}
 
 	return u.userRepo.Update(ctx, *user)
+}
+
+func (u *UserUsecase) MarkStaleUsersOffline(ctx context.Context, cutoff time.Time) error {
+	return u.userRepo.MarkStaleUsersOffline(ctx, cutoff)
 }
 
 // func (u *UserUsecase) ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*model.UserOfflineSession, error) {

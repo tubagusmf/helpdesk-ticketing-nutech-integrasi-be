@@ -266,7 +266,7 @@ func (h *UserHandler) Heartbeat(c echo.Context) error {
 
 	claim := claimValue.(*model.CustomClaims)
 
-	err := h.userUsecase.UpdateLastSeen(
+	err := h.userUsecase.UpdateHeartbeat(
 		c.Request().Context(),
 		claim.UserID,
 	)

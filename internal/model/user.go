@@ -32,6 +32,7 @@ type User struct {
 	IsOnline             bool       `json:"is_online"`
 	LastSeen             *time.Time `json:"last_seen"`
 	LastTicketAssignedAt *time.Time `json:"last_ticket_assigned_at"`
+	LastHeartbeatAt      *time.Time `json:"-"`
 	CreatedAt            time.Time  `json:"created_at"`
 	UpdatedAt            time.Time  `json:"updated_at"`
 	DeletedAt            *time.Time `json:"-"`
@@ -63,7 +64,8 @@ type IUserRepository interface {
 	Update(ctx context.Context, user User) error
 	Delete(ctx context.Context, id int64) error
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
-	UpdateLastSeen(ctx context.Context, userID int64) error
+	UpdateHeartbeat(ctx context.Context, userID int64) error
+	MarkStaleUsersOffline(ctx context.Context, cutoff time.Time) error
 	// ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*UserOfflineSession, error)
 	// GetActiveOfflineSession(ctx context.Context, userID int64) (*UserOfflineSession, error)
 }
@@ -76,8 +78,9 @@ type IUserUsecase interface {
 	Update(ctx context.Context, id int64, in UpdateUserInput) error
 	Delete(ctx context.Context, id int64) error
 	UpdateOnlineStatus(ctx context.Context, userID int64, isOnline bool) error
-	UpdateLastSeen(ctx context.Context, userID int64) error
+	UpdateHeartbeat(ctx context.Context, userID int64) error
 	UpdateProfile(ctx context.Context, userID int64, in UpdateProfileInput) error
+	MarkStaleUsersOffline(ctx context.Context, cutoff time.Time) error
 	// ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*UserOfflineSession, error)
 	// GetActiveOfflineSession(ctx context.Context, userID int64) (*UserOfflineSession, error)
 }

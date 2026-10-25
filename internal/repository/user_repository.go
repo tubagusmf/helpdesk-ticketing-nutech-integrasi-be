@@ -254,17 +254,23 @@ func (r *UserRepo) UpdateOnlineStatus(ctx context.Context, userID int64, isOnlin
 
 	now := time.Now()
 
+	updates := map[string]interface{}{
+		"is_online":  isOnline,
+		"updated_at": now,
+	}
+
+	if isOnline {
+		updates["last_heartbeat_at"] = now
+	} else {
+		updates["last_seen"] = now
+	}
+
 	if err := tx.Model(&model.User{}).
-		Where("id = ?", userID).
-		Updates(map[string]interface{}{
-			"is_online":  isOnline,
-			"last_seen":  now,
-			"updated_at": now,
-		}).Error; err != nil {
+		Where("id = ? AND deleted_at IS NULL", userID).
+		Updates(updates).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
-
 	// if isOnline {
 	// 	var session model.UserOfflineSession
 
@@ -298,11 +304,32 @@ func (r *UserRepo) UpdateOnlineStatus(ctx context.Context, userID int64, isOnlin
 	return tx.Commit().Error
 }
 
-func (r *UserRepo) UpdateLastSeen(ctx context.Context, userID int64) error {
+func (r *UserRepo) UpdateHeartbeat(ctx context.Context, userID int64) error {
 	return r.db.WithContext(ctx).
 		Model(&model.User{}).
-		Where("id = ?", userID).
-		Update("last_seen", time.Now()).Error
+		Where("id = ? AND deleted_at IS NULL", userID).
+		UpdateColumn(
+			"last_heartbeat_at",
+			time.Now(),
+		).Error
+}
+
+func (r *UserRepo) MarkStaleUsersOffline(ctx context.Context, cutoff time.Time) error {
+	now := time.Now()
+
+	return r.db.WithContext(ctx).
+		Model(&model.User{}).
+		Where(
+			`is_online = ?
+             AND deleted_at IS NULL
+             AND (last_seen IS NULL OR last_seen < ?)`,
+			true,
+			cutoff,
+		).
+		Updates(map[string]interface{}{
+			"is_online":  false,
+			"updated_at": now,
+		}).Error
 }
 
 // func (r *UserRepo) ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*model.UserOfflineSession, error) {
