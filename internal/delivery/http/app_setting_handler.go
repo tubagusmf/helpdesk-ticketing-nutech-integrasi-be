@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -101,6 +102,55 @@ func (h *AppSettingHandler) Update(c echo.Context) error {
 	setting.SidebarTitle = readField("sidebar_title", setting.SidebarTitle)
 	setting.FooterText = readField("footer_text", setting.FooterText)
 	setting.AppVersion = readField("app_version", setting.AppVersion)
+
+	readIntField := func(key string, previous int) (int, error) {
+		values, exists := formValues[key]
+
+		if !exists || len(values) == 0 {
+			return previous, nil
+		}
+
+		value, parseErr := strconv.Atoi(
+			strings.TrimSpace(values[0]),
+		)
+
+		if parseErr != nil {
+			return 0, echo.NewHTTPError(
+				http.StatusBadRequest,
+				key+" harus berupa bilangan bulat",
+			)
+		}
+
+		return value, nil
+	}
+
+	if setting.PriorityUrgentMinutes, err = readIntField(
+		"priority_urgent_minutes",
+		setting.PriorityUrgentMinutes,
+	); err != nil {
+		return err
+	}
+
+	if setting.PriorityHighMinutes, err = readIntField(
+		"priority_high_minutes",
+		setting.PriorityHighMinutes,
+	); err != nil {
+		return err
+	}
+
+	if setting.PriorityMediumMinutes, err = readIntField(
+		"priority_medium_minutes",
+		setting.PriorityMediumMinutes,
+	); err != nil {
+		return err
+	}
+
+	if setting.PriorityLowMinutes, err = readIntField(
+		"priority_low_minutes",
+		setting.PriorityLowMinutes,
+	); err != nil {
+		return err
+	}
 
 	savedFiles := make([]savedAppSettingFile, 0, 3)
 	persisted := false

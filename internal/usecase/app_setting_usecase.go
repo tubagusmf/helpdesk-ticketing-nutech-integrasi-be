@@ -16,6 +16,17 @@ type AppSettingUsecase struct {
 	repo model.IAppSettingRepository
 }
 
+func validatePriorityMinutes(priority string, minutes int) error {
+	if minutes < 1 || minutes > 525600 {
+		return errors.New(
+			priority +
+				" SLA harus diantara 1 menit sampai 525600 menit",
+		)
+	}
+
+	return nil
+}
+
 func NewAppSettingUsecase(repo model.IAppSettingRepository) model.IAppSettingUsecase {
 	return &AppSettingUsecase{repo: repo}
 }
@@ -72,6 +83,34 @@ func (u *AppSettingUsecase) Update(ctx context.Context, setting model.AppSetting
 	}
 	if len([]rune(setting.AppVersion)) > 30 {
 		return nil, errors.New("versi aplikasi maksimal 30 karakter")
+	}
+
+	if err := validatePriorityMinutes(
+		"URGENT",
+		setting.PriorityUrgentMinutes,
+	); err != nil {
+		return nil, err
+	}
+
+	if err := validatePriorityMinutes(
+		"HIGH",
+		setting.PriorityHighMinutes,
+	); err != nil {
+		return nil, err
+	}
+
+	if err := validatePriorityMinutes(
+		"MEDIUM",
+		setting.PriorityMediumMinutes,
+	); err != nil {
+		return nil, err
+	}
+
+	if err := validatePriorityMinutes(
+		"LOW",
+		setting.PriorityLowMinutes,
+	); err != nil {
+		return nil, err
 	}
 
 	if err := u.repo.Update(ctx, setting); err != nil {

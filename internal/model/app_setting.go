@@ -20,6 +20,10 @@ type AppSetting struct {
 	SidebarTitle          string    `json:"sidebar_title"`
 	FooterText            string    `json:"footer_text"`
 	AppVersion            string    `json:"app_version"`
+	PriorityUrgentMinutes int       `json:"priority_urgent_minutes"`
+	PriorityHighMinutes   int       `json:"priority_high_minutes"`
+	PriorityMediumMinutes int       `json:"priority_medium_minutes"`
+	PriorityLowMinutes    int       `json:"priority_low_minutes"`
 	CreatedAt             time.Time `json:"created_at"`
 	UpdatedAt             time.Time `json:"updated_at"`
 }

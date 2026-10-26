@@ -31,6 +31,10 @@ func defaultAppSetting() model.AppSetting {
 		SidebarTitle:          "Helpdesk Center",
 		FooterText:            "© 2026 Helpdesk CCIT Nutech Integrasi",
 		AppVersion:            "Version 1.0.0",
+		PriorityUrgentMinutes: 15,
+		PriorityHighMinutes:   60,
+		PriorityMediumMinutes: 120,
+		PriorityLowMinutes:    240,
 	}
 }
 
@@ -72,6 +76,10 @@ func (r *AppSettingRepo) Update(ctx context.Context, setting model.AppSetting) e
 		"sidebar_title":           setting.SidebarTitle,
 		"footer_text":             setting.FooterText,
 		"app_version":             setting.AppVersion,
+		"priority_urgent_minutes": setting.PriorityUrgentMinutes,
+		"priority_high_minutes":   setting.PriorityHighMinutes,
+		"priority_medium_minutes": setting.PriorityMediumMinutes,
+		"priority_low_minutes":    setting.PriorityLowMinutes,
 		"updated_at":              time.Now(),
 	}
 

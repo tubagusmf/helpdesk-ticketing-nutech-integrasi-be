@@ -23,6 +23,7 @@ type TicketUsecase struct {
 	ticketReassignRepo model.ITicketReassignmentRepository
 	projectRepo        model.IProjectRepository
 	ticketCommentRepo  model.ITicketCommentRepository
+	appSettingRepo     model.IAppSettingRepository
 	db                 *gorm.DB
 	hub                *ws.Hub
 }
@@ -34,6 +35,7 @@ func NewTicketUsecase(
 	reassignRepo model.ITicketReassignmentRepository,
 	projectRepo model.IProjectRepository,
 	ticketCommentRepo model.ITicketCommentRepository,
+	appSettingRepo model.IAppSettingRepository,
 	hub *ws.Hub,
 ) model.ITicketUsecase {
 	return &TicketUsecase{
@@ -43,6 +45,7 @@ func NewTicketUsecase(
 		ticketReassignRepo: reassignRepo,
 		projectRepo:        projectRepo,
 		ticketCommentRepo:  ticketCommentRepo,
+		appSettingRepo:     appSettingRepo,
 		hub:                hub,
 	}
 }
@@ -106,18 +109,44 @@ func (u *TicketUsecase) Create(ctx context.Context, reporterID int64, in model.C
 	loc, _ := time.LoadLocation("Asia/Jakarta")
 	now := time.Now().In(loc)
 
-	var dueAt time.Time
+	settings, err := u.appSettingRepo.Get(ctx)
+	if err != nil {
+		return nil, false, fmt.Errorf(
+			"gagal mengambil konfigurasi SLA: %w",
+			err,
+		)
+	}
+
+	var priorityMinutes int
 
 	switch in.Priority {
 	case model.PriorityUrgent:
-		dueAt = now.Add(15 * time.Minute)
+		priorityMinutes = settings.PriorityUrgentMinutes
+
 	case model.PriorityHigh:
-		dueAt = now.Add(1 * time.Hour)
+		priorityMinutes = settings.PriorityHighMinutes
+
 	case model.PriorityMedium:
-		dueAt = now.Add(2 * time.Hour)
+		priorityMinutes = settings.PriorityMediumMinutes
+
 	case model.PriorityLow:
-		dueAt = now.Add(4 * time.Hour)
+		priorityMinutes = settings.PriorityLowMinutes
+
+	default:
+		return nil, false, errors.New(
+			"prioritas ticket tidak valid",
+		)
 	}
+
+	if priorityMinutes < 1 || priorityMinutes > 525600 {
+		return nil, false, errors.New(
+			"konfigurasi durasi SLA tidak valid",
+		)
+	}
+
+	dueAt := now.Add(
+		time.Duration(priorityMinutes) * time.Minute,
+	)
 
 	var assignedToID *int64
 	var staffAssignedToID *int64
