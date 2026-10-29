@@ -1,15 +1,18 @@
 package console
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 
 	"github.com/joho/godotenv"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/db"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/config"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/consumer"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/fcm"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/repository"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/usecase"
@@ -83,6 +86,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	ticketReassignRepo := repository.NewTicketReassignmentRepo(postgresDB)
 	ticketResolutionEngineerRepo := repository.NewTicketEngineerResolutionRepo(postgresDB)
 	appSettingRepo := repository.NewAppSettingRepo(postgresDB)
+	fcmTokenRepo := repository.NewFCMTokenRepo(postgresDB)
 
 	hub := ws.NewHub()
 
@@ -104,6 +108,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo)
 	ticketResolutionEngineerUsecase := usecase.NewTicketEngineerResolutionUsecase(postgresDB, ticketResolutionEngineerRepo, ticketReassignRepo, ticketRepo, userRepo, ticketHistoryRepo, hub)
 	appSettingUsecase := usecase.NewAppSettingUsecase(appSettingRepo)
+	fcmTokenUsecase := usecase.NewFCMTokenUsecase(fcmTokenRepo)
 
 	ticketWorker := worker.NewTicketWorker(postgresDB, hub)
 	go ticketWorker.Start()
@@ -114,9 +119,29 @@ func httpServer(cmd *cobra.Command, args []string) {
 
 	go notificationCleaner.Start()
 
-	consumer.StartNotificationConsumer(
-		notificationUsecase,
+	var fcmPushService *fcm.Service
+
+	fcmEnabled := strings.EqualFold(
+		strings.TrimSpace(os.Getenv("FCM_ENABLED")),
+		"true",
 	)
+
+	if fcmEnabled {
+		fcmPushService, err = fcm.NewService(
+			context.Background(),
+		)
+
+		if err != nil {
+			log.Fatalf(
+				"Failed to initialize Firebase FCM: %v",
+				err,
+			)
+		}
+
+		log.Println("Firebase FCM connected")
+	}
+
+	consumer.StartNotificationConsumer(notificationUsecase, fcmTokenUsecase, fcmPushService)
 
 	e := echo.New()
 
@@ -136,6 +161,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewNotificationHandler(e, notificationUsecase)
 	handlerHttp.NewTicketEngineerResolutionHandler(e, ticketResolutionEngineerUsecase)
 	handlerHttp.NewAppSettingHandler(e, appSettingUsecase)
+	handlerHttp.NewFCMTokenHandler(e, fcmTokenUsecase)
 
 	if err := os.MkdirAll(helper.UploadDir(), 0750); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)
