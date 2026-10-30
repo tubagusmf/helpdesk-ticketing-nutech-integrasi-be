@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	"github.com/sirupsen/logrus"
-	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/websocket"
 
@@ -67,13 +66,19 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 		return nil, err
 	}
 
-	if err := u.ticketRepo.RecordStaffFirstResponse(
-		ctx,
-		comment.TicketID,
-		comment.UserID,
-	); err != nil {
-		log.Error("Failed record staff first response:", err)
-		return nil, err
+	if ticket.StaffAssignedToID != nil &&
+		*ticket.StaffAssignedToID == comment.UserID {
+
+		if err := u.ticketRepo.RecordStaffFirstResponse(
+			ctx,
+			comment.TicketID,
+			comment.UserID,
+		); err != nil {
+			log.Error(
+				"Failed record staff first response:",
+				err,
+			)
+		}
 	}
 
 	ws.BroadcastToRoles(
@@ -120,40 +125,26 @@ func (u *TicketCommentUsecase) Create(ctx context.Context, comment model.TicketC
 		}
 	}
 
-	var receiverID int64
+	messagePreview := strings.TrimSpace(comment.Message)
 
-	if comment.UserID == ticket.ReporterID {
+	runes := []rune(messagePreview)
 
-		if ticket.AssignedToID == nil {
-			log.Warn("Ticket has no assigned staff")
-			return result, nil
-		}
-
-		receiverID = *ticket.AssignedToID
-
-	} else {
-		receiverID = ticket.ReporterID
+	if len(runes) > 80 {
+		messagePreview = string(runes[:80]) + "..."
 	}
 
-	messagePreview := comment.Message
-
-	if len(messagePreview) > 80 {
-		messagePreview = messagePreview[:80] + "..."
-	}
-
-	err = helper.PublishNotificationEvent(
+	publishTicketNotification(
 		"ticket.comment",
-		model.NotificationEvent{
-			EventType:     "TICKET_COMMENT",
-			UserID:        receiverID,
-			ActorID:       comment.UserID,
-			TicketID:      ticket.ID,
-			TicketCode:    ticket.TicketCode,
-			ReferenceType: "COMMENT",
-			ReferenceID:   result.ID,
-			Title:         "Komentar Baru",
-			Message:       "Komentar pada tiket " + ticket.TicketCode + ": " + messagePreview,
-		},
+		ticket,
+		comment.UserID,
+		model.NotificationTicketComment,
+		model.ReferenceComment,
+		result.ID,
+		"Komentar Baru",
+		"Komentar pada tiket "+
+			ticket.TicketCode+
+			": "+
+			messagePreview,
 	)
 
 	if err != nil {

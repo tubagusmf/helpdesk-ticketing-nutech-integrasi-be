@@ -29,7 +29,6 @@ func NewTicketWorker(db *gorm.DB, hub *ws.Hub) *TicketWorker {
 
 func (w *TicketWorker) Start() {
 	go w.monitorSLAHistory()
-	go w.monitorStaleUsersOffline()
 
 	for {
 		result, err := config.Rdb.BRPop(
@@ -159,58 +158,6 @@ func (w *TicketWorker) checkSLAHistory() {
 	}
 }
 
-func (w *TicketWorker) monitorStaleUsersOffline() {
-	w.markStaleUsersOffline()
-
-	ticker := time.NewTicker(15 * time.Second)
-	defer ticker.Stop()
-
-	for range ticker.C {
-		w.markStaleUsersOffline()
-	}
-}
-
-func (w *TicketWorker) markStaleUsersOffline() {
-	ctx, cancel := context.WithTimeout(
-		context.Background(),
-		5*time.Second,
-	)
-	defer cancel()
-
-	cutoff := time.Now().Add(-30 * time.Second)
-
-	result := w.db.WithContext(ctx).
-		Model(&model.User{}).
-		Where(`
-        is_online = ?
-        AND deleted_at IS NULL
-        AND (
-            last_heartbeat_at IS NULL
-            OR last_heartbeat_at < ?
-        )
-    `, true, cutoff).
-		Updates(map[string]interface{}{
-			"is_online":  false,
-			"last_seen":  time.Now(),
-			"updated_at": time.Now(),
-		})
-
-	if result.Error != nil {
-		log.Printf(
-			"[ONLINE STATUS] gagal menandai user Offline: %v",
-			result.Error,
-		)
-		return
-	}
-
-	if result.RowsAffected > 0 {
-		log.Printf(
-			"[ONLINE STATUS] %d user ditandai Offline karena heartbeat kedaluwarsa",
-			result.RowsAffected,
-		)
-	}
-}
-
 func (w *TicketWorker) recordSLAHistory(ticket model.Ticket, actorID int64, action string, oldValue *string, occurredAt time.Time, message string) error {
 	ctx := context.Background()
 
@@ -316,21 +263,16 @@ func (w *TicketWorker) process(ticket model.Ticket) {
 
 	var staffs []model.User
 
-	cutoff := time.Now().Add(-30 * time.Second)
-
 	err = w.db.
 		Where(`
         role_id = ?
         AND is_active = ?
         AND is_online = ?
         AND deleted_at IS NULL
-        AND last_heartbeat_at IS NOT NULL
-        AND last_heartbeat_at >= ?
     `,
 			2,
 			true,
 			true,
-			cutoff,
 		).
 		Find(&staffs).Error
 

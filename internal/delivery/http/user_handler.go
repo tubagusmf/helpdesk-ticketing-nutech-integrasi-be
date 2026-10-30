@@ -279,24 +279,7 @@ func (h *UserHandler) Heartbeat(c echo.Context) error {
 }
 
 func (h *UserHandler) Logout(c echo.Context) error {
-	ctx := c.Request().Context()
-
-	var body struct {
-		Token string `json:"token"`
-	}
-
-	_ = c.Bind(&body)
-
-	if body.Token != "" {
-		var claim model.CustomClaims
-		_ = helper.DecodeToken(body.Token, &claim)
-
-		if claim.UserID != 0 {
-			_ = h.userUsecase.UpdateOnlineStatus(ctx, claim.UserID, false)
-		}
-	}
-
-	return c.NoContent(http.StatusOK)
+	return c.NoContent(http.StatusNoContent)
 }
 
 func (h *UserHandler) Profile(c echo.Context) error {

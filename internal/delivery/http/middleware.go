@@ -41,16 +41,10 @@ func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		if err != nil {
 
 			if errors.Is(err, jwt.ErrTokenExpired) {
-
-				if claim.UserID != 0 && userUC != nil {
-					_ = userUC.UpdateOnlineStatus(
-						context.Background(),
-						claim.UserID,
-						false,
-					)
-				}
-
-				return echo.NewHTTPError(http.StatusUnauthorized, "token expired")
+				return echo.NewHTTPError(
+					http.StatusUnauthorized,
+					"token expired",
+				)
 			}
 
 			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")

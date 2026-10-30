@@ -2,11 +2,14 @@ package websocket
 
 import (
 	"net/http"
-	"os"
+	"strings"
+	"time"
 
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/gorilla/websocket"
+	gws "github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
+
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/helper"
+	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
 )
 
 type Handler struct {
@@ -19,7 +22,7 @@ func NewHandler(hub *Hub) *Handler {
 	}
 }
 
-var upgrader = websocket.Upgrader{
+var upgrader = gws.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
@@ -35,47 +38,43 @@ func (h *Handler) Handle(c echo.Context) error {
 		)
 	}
 
-	token, err := jwt.Parse(
+	var claims model.CustomClaims
+
+	if err := helper.DecodeToken(
 		tokenString,
-		func(token *jwt.Token) (interface{}, error) {
+		&claims,
+	); err != nil {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"invalid or expired token",
+		)
+	}
 
-			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, echo.NewHTTPError(
-					http.StatusUnauthorized,
-					"invalid signing method",
-				)
-			}
+	if claims.UserID <= 0 {
+		return echo.NewHTTPError(
+			http.StatusUnauthorized,
+			"invalid user ID",
+		)
+	}
 
-			return []byte(os.Getenv("JWT_SECRET")), nil
-		},
+	role := strings.ToUpper(
+		strings.TrimSpace(claims.Role),
 	)
 
-	if err != nil || !token.Valid {
+	if role == "" {
 		return echo.NewHTTPError(
 			http.StatusUnauthorized,
-			"invalid token",
+			"invalid user role",
 		)
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
-
-	if !ok {
+	if claims.ExpiresAt == nil ||
+		!claims.ExpiresAt.Time.After(time.Now()) {
 		return echo.NewHTTPError(
 			http.StatusUnauthorized,
-			"invalid claims",
+			"token expiration missing or expired",
 		)
 	}
-
-	role, ok := claims["role"].(string)
-
-	if !ok {
-		return echo.NewHTTPError(
-			http.StatusUnauthorized,
-			"invalid role",
-		)
-	}
-
-	userID := int64(claims["user_id"].(float64))
 
 	conn, err := upgrader.Upgrade(
 		c.Response(),
@@ -91,8 +90,10 @@ func (h *Handler) Handle(c echo.Context) error {
 		Conn: conn,
 		Send: make(chan []byte, 256),
 
-		UserID: userID,
+		UserID: claims.UserID,
 		Role:   role,
+
+		ExpiresAt: claims.ExpiresAt.Time,
 	}
 
 	h.Hub.Register <- client

@@ -147,8 +147,8 @@ func (r *UserRepo) FindAll(ctx context.Context, filter model.User, page int, lim
 
 	if filter.IsOnline {
 		query = query.Where(`
-			users.last_seen > NOW() - INTERVAL '1 minute'
-		`)
+        users.is_online = TRUE
+    `)
 	}
 
 	if err := query.Count(&total).Error; err != nil {
@@ -319,15 +319,20 @@ func (r *UserRepo) MarkStaleUsersOffline(ctx context.Context, cutoff time.Time) 
 
 	return r.db.WithContext(ctx).
 		Model(&model.User{}).
-		Where(
-			`is_online = ?
-             AND deleted_at IS NULL
-             AND (last_seen IS NULL OR last_seen < ?)`,
+		Where(`
+            is_online = ?
+            AND deleted_at IS NULL
+            AND (
+                last_heartbeat_at IS NULL
+                OR last_heartbeat_at < ?
+            )
+        `,
 			true,
 			cutoff,
 		).
 		Updates(map[string]interface{}{
 			"is_online":  false,
+			"last_seen":  now,
 			"updated_at": now,
 		}).Error
 }

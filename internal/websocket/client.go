@@ -7,47 +7,52 @@ import (
 	gws "github.com/gorilla/websocket"
 )
 
-type Client struct {
-	Conn *gws.Conn
-	Send chan []byte
+const (
+	pongWait   = 50 * time.Second
+	pingPeriod = 20 * time.Second
+	writeWait  = 10 * time.Second
+	maxMessage = 512
+)
 
-	UserID int64
-	Role   string
+type Client struct {
+	Conn      *gws.Conn
+	Send      chan []byte
+	UserID    int64
+	Role      string
+	ExpiresAt time.Time
 }
 
 func (c *Client) ReadPump(hub *Hub) {
 	defer func() {
 		hub.Unregister <- c
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	}()
 
-	c.Conn.SetReadLimit(512)
+	c.Conn.SetReadLimit(maxMessage)
 
 	c.Conn.SetReadDeadline(
-		time.Now().Add(60 * time.Second),
+		time.Now().Add(pongWait),
 	)
 
 	c.Conn.SetPongHandler(func(string) error {
-
-		c.Conn.SetReadDeadline(
-			time.Now().Add(60 * time.Second),
+		return c.Conn.SetReadDeadline(
+			time.Now().Add(pongWait),
 		)
-
-		return nil
 	})
 
 	for {
-
 		_, _, err := c.Conn.ReadMessage()
 
 		if err != nil {
-
 			if gws.IsUnexpectedCloseError(
 				err,
 				gws.CloseGoingAway,
 				gws.CloseAbnormalClosure,
 			) {
-				log.Println("websocket error:", err)
+				log.Println(
+					"[WS] read error:",
+					err,
+				)
 			}
 
 			break
@@ -56,55 +61,76 @@ func (c *Client) ReadPump(hub *Hub) {
 }
 
 func (c *Client) WritePump() {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(pingPeriod)
 
 	defer func() {
 		ticker.Stop()
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	}()
 
+	var expiryTimer *time.Timer
+	var expiryChannel <-chan time.Time
+
+	if !c.ExpiresAt.IsZero() {
+		remaining := time.Until(c.ExpiresAt)
+
+		if remaining <= 0 {
+			return
+		}
+
+		expiryTimer = time.NewTimer(remaining)
+		expiryChannel = expiryTimer.C
+
+		defer expiryTimer.Stop()
+	}
+
 	for {
-
 		select {
-
 		case message, ok := <-c.Send:
-
 			c.Conn.SetWriteDeadline(
-				time.Now().Add(10 * time.Second),
+				time.Now().Add(writeWait),
 			)
 
 			if !ok {
-
-				c.Conn.WriteMessage(
+				_ = c.Conn.WriteControl(
 					gws.CloseMessage,
-					[]byte{},
+					gws.FormatCloseMessage(
+						gws.CloseNormalClosure,
+						"connection closed",
+					),
+					time.Now().Add(writeWait),
 				)
 
 				return
 			}
 
-			err := c.Conn.WriteMessage(
+			if err := c.Conn.WriteMessage(
 				gws.TextMessage,
 				message,
-			)
-
-			if err != nil {
+			); err != nil {
 				return
 			}
 
 		case <-ticker.C:
-
-			c.Conn.SetWriteDeadline(
-				time.Now().Add(10 * time.Second),
-			)
-
-			if err := c.Conn.WriteMessage(
+			if err := c.Conn.WriteControl(
 				gws.PingMessage,
 				nil,
+				time.Now().Add(writeWait),
 			); err != nil {
-
 				return
 			}
+
+		case <-expiryChannel:
+			_ = c.Conn.WriteControl(
+				gws.CloseMessage,
+				gws.FormatCloseMessage(
+					gws.CloseNormalClosure,
+					"JWT expired",
+				),
+				time.Now().Add(writeWait),
+			)
+
+			return
 		}
 	}
 }
