@@ -88,7 +88,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	appSettingRepo := repository.NewAppSettingRepo(postgresDB)
 	fcmTokenRepo := repository.NewFCMTokenRepo(postgresDB)
 
-	userUsecase := usecase.NewUserUsecase(userRepo, projectRepo)
+	userUsecase := usecase.NewUserUsecase(userRepo, projectRepo, appSettingRepo)
 	hub := ws.NewHub(userUsecase)
 	go hub.Run()
 

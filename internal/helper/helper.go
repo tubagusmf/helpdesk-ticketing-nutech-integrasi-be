@@ -22,7 +22,13 @@ func CheckPasswordHash(password, hash string) bool {
 	return err == nil
 }
 
-func GenerateToken(user model.User) (string, error) {
+func GenerateTokenWithTTL(user model.User, ttl time.Duration) (string, error) {
+	if ttl <= 0 {
+		ttl = 10 * time.Hour
+	}
+
+	now := time.Now()
+
 	claims := model.CustomClaims{
 		UserID: user.ID,
 		RoleID: user.RoleID,
@@ -30,12 +36,28 @@ func GenerateToken(user model.User) (string, error) {
 		Email:  user.Email,
 		Name:   user.Name,
 		RegisteredClaims: jwt.RegisteredClaims{
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(10 * time.Hour)),
+			IssuedAt: jwt.NewNumericDate(now),
+			ExpiresAt: jwt.NewNumericDate(
+				now.Add(ttl),
+			),
 		},
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+	token := jwt.NewWithClaims(
+		jwt.SigningMethodHS256,
+		claims,
+	)
+
+	return token.SignedString(
+		[]byte(os.Getenv("JWT_SECRET")),
+	)
+}
+
+func GenerateToken(user model.User) (string, error) {
+	return GenerateTokenWithTTL(
+		user,
+		10*time.Hour,
+	)
 }
 
 func DecodeToken(tokenString string, claim *model.CustomClaims) error {

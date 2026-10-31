@@ -3,6 +3,7 @@ package worker
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sort"
 	"time"
@@ -69,6 +70,40 @@ func (w *TicketWorker) monitorSLAHistory() {
 
 func (w *TicketWorker) checkSLAHistory() {
 	now := time.Now()
+	responseSLAMinutes := 3
+
+	var setting model.AppSetting
+
+	settingErr := w.db.
+		Select("staff_response_sla_minutes").
+		Where("id = ?", 1).
+		First(&setting).Error
+
+	if settingErr != nil {
+		log.Printf(
+			"[SLA HISTORY] failed load response SLA setting, using default 3 minutes: %v",
+			settingErr,
+		)
+	} else if setting.StaffResponseSLAMinutes >= 1 &&
+		setting.StaffResponseSLAMinutes <= 525600 {
+
+		responseSLAMinutes =
+			setting.StaffResponseSLAMinutes
+
+	} else {
+		log.Printf(
+			"[SLA HISTORY] invalid response SLA setting, using default 3 minutes",
+		)
+	}
+
+	responseSLA := time.Duration(
+		responseSLAMinutes,
+	) * time.Minute
+
+	responseSLALabel := fmt.Sprintf(
+		"%d menit",
+		responseSLAMinutes,
+	)
 
 	var tickets []model.Ticket
 
@@ -84,12 +119,15 @@ func (w *TicketWorker) checkSLAHistory() {
             )
         `,
 			now,
-			now.Add(-3*time.Minute),
+			now.Add(-responseSLA),
 		).
 		Find(&tickets).Error
 
 	if err != nil {
-		log.Println("[SLA HISTORY] failed load tickets:", err)
+		log.Println(
+			"[SLA HISTORY] failed load tickets:",
+			err,
+		)
 		return
 	}
 
@@ -128,7 +166,7 @@ func (w *TicketWorker) checkSLAHistory() {
 		}
 
 		responseDeadline := ticket.StaffAssignedAt.Add(
-			3 * time.Minute,
+			responseSLA,
 		)
 
 		if now.Before(responseDeadline) {
@@ -139,7 +177,10 @@ func (w *TicketWorker) checkSLAHistory() {
 			UTC().
 			Format(time.RFC3339Nano)
 
-		message := "Tiket belum direspons setelah melewati batas SLA respons 3 menit."
+		message := fmt.Sprintf(
+			"Tiket belum direspons setelah melewati batas SLA respons %s.",
+			responseSLALabel,
+		)
 
 		if err := w.recordSLAHistory(
 			ticket,

@@ -1515,14 +1515,38 @@ func (u *TicketUsecase) recordStaffResponseSLAHistory(ctx context.Context, ticke
 		elapsed = 0
 	}
 
-	const responseSLA = 3 * time.Minute
+	settings, err := u.appSettingRepo.Get(ctx)
+	if err != nil {
+		logrus.Errorf(
+			"[SLA RESPONSE] failed to load application settings: %v",
+			err,
+		)
+		return
+	}
+
+	responseMinutes := settings.StaffResponseSLAMinutes
+
+	if responseMinutes < 1 || responseMinutes > 525600 {
+		logrus.Errorf(
+			"[SLA RESPONSE] invalid configured duration: %d minutes",
+			responseMinutes,
+		)
+		return
+	}
+
+	responseSLA := time.Duration(responseMinutes) * time.Minute
+
+	responseSLALabel := formatSLADuration(responseSLA)
 
 	assignmentKey := assignedAt.UTC().Format(
 		time.RFC3339Nano,
 	)
 
 	if elapsed >= responseSLA {
-		message := "Tiket belum direspons setelah melewati batas SLA respons 3 menit."
+		message := fmt.Sprintf(
+			"Tiket belum direspons setelah melewati batas SLA respons %s.",
+			responseSLALabel,
+		)
 
 		if err := u.recordTicketSLAHistory(
 			ctx,
@@ -1548,7 +1572,8 @@ func (u *TicketUsecase) recordStaffResponseSLAHistory(ctx context.Context, ticke
 	lateBy := elapsed - responseSLA
 
 	message := fmt.Sprintf(
-		"Ticket telat direspons. Keterlambatan setelah batas SLA 3 menit: %s.",
+		"Ticket telat direspons. Keterlambatan setelah batas SLA respons %s: %s.",
+		responseSLALabel,
 		formatSLADuration(lateBy),
 	)
 

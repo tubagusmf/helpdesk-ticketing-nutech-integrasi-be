@@ -16,14 +16,16 @@ import (
 var validate = validator.New()
 
 type UserUsecase struct {
-	userRepo    model.IUserRepository
-	projectRepo model.IProjectRepository
+	userRepo       model.IUserRepository
+	projectRepo    model.IProjectRepository
+	appSettingRepo model.IAppSettingRepository
 }
 
-func NewUserUsecase(userRepo model.IUserRepository, projectRepo model.IProjectRepository) model.IUserUsecase {
+func NewUserUsecase(userRepo model.IUserRepository, projectRepo model.IProjectRepository, appSettingRepo model.IAppSettingRepository) model.IUserUsecase {
 	return &UserUsecase{
-		userRepo:    userRepo,
-		projectRepo: projectRepo,
+		userRepo:       userRepo,
+		projectRepo:    projectRepo,
+		appSettingRepo: appSettingRepo,
 	}
 }
 
@@ -57,7 +59,7 @@ func (u *UserUsecase) Login(ctx context.Context, in model.LoginInput) (string, e
 	// 	log.Error("failed update online status:", err)
 	// }
 
-	token, err := helper.GenerateToken(*user)
+	token, err := u.generateAccessToken(ctx, *user)
 	if err != nil {
 		return "", err
 	}
@@ -124,7 +126,7 @@ func (u *UserUsecase) Create(ctx context.Context, in model.CreateUserInput) (str
 		return "", err
 	}
 
-	accessToken, err := helper.GenerateToken(*newUser)
+	accessToken, err := u.generateAccessToken(ctx, *newUser)
 	if err != nil {
 		return "", err
 	}
@@ -279,6 +281,28 @@ func (u *UserUsecase) UpdateProfile(ctx context.Context, userID int64, in model.
 
 func (u *UserUsecase) MarkStaleUsersOffline(ctx context.Context, cutoff time.Time) error {
 	return u.userRepo.MarkStaleUsersOffline(ctx, cutoff)
+}
+
+func (u *UserUsecase) generateAccessToken(ctx context.Context, user model.User) (string, error) {
+	settings, err := u.appSettingRepo.Get(ctx)
+	if err != nil {
+		return "", err
+	}
+
+	loginMinutes := settings.LoginSessionMinutes
+
+	if loginMinutes < 5 || loginMinutes > 43200 {
+		return "", errors.New(
+			"konfigurasi durasi login tidak valid",
+		)
+	}
+
+	ttl := time.Duration(loginMinutes) * time.Minute
+
+	return helper.GenerateTokenWithTTL(
+		user,
+		ttl,
+	)
 }
 
 // func (u *UserUsecase) ChangeOnlineStatus(ctx context.Context, userID int64, isOnline bool, justification string) (*model.UserOfflineSession, error) {

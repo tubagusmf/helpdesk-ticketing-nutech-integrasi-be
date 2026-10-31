@@ -113,8 +113,40 @@ func (u *AppSettingUsecase) Update(ctx context.Context, setting model.AppSetting
 		return nil, err
 	}
 
+	if err := validateLoginSessionMinutes(
+		setting.LoginSessionMinutes,
+	); err != nil {
+		return nil, err
+	}
+
+	if err := validateStaffResponseMinutes(
+		setting.StaffResponseSLAMinutes,
+	); err != nil {
+		return nil, err
+	}
+
 	if err := u.repo.Update(ctx, setting); err != nil {
 		return nil, err
 	}
 	return u.repo.Get(ctx)
+}
+
+func validateLoginSessionMinutes(minutes int) error {
+	if minutes < 5 || minutes > 43200 {
+		return errors.New(
+			"durasi login harus antara 5 sampai 43200 menit",
+		)
+	}
+
+	return nil
+}
+
+func validateStaffResponseMinutes(minutes int) error {
+	if minutes < 1 || minutes > 525600 {
+		return errors.New(
+			"SLA respons tiket harus antara 1 sampai 525600 menit",
+		)
+	}
+
+	return nil
 }

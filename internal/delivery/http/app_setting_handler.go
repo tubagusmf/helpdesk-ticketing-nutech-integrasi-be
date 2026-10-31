@@ -152,6 +152,20 @@ func (h *AppSettingHandler) Update(c echo.Context) error {
 		return err
 	}
 
+	if setting.LoginSessionMinutes, err = readIntField(
+		"login_session_minutes",
+		setting.LoginSessionMinutes,
+	); err != nil {
+		return err
+	}
+
+	if setting.StaffResponseSLAMinutes, err = readIntField(
+		"staff_response_sla_minutes",
+		setting.StaffResponseSLAMinutes,
+	); err != nil {
+		return err
+	}
+
 	savedFiles := make([]savedAppSettingFile, 0, 3)
 	persisted := false
 	defer func() {
