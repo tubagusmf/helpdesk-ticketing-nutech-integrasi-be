@@ -8,7 +8,8 @@ import (
 type TicketResolution struct {
 	ID              int64     `json:"id"`
 	TicketID        int64     `json:"ticket_id"`
-	CauseID         int64     `json:"cause_id"`
+	CauseID         *int64    `json:"cause_id"`
+	CustomCause     string    `json:"custom_cause"`
 	SolutionID      *int64    `json:"solution_id"`
 	CustomSolution  string    `json:"custom_solution"`
 	ResolutionNotes string    `json:"resolution_notes"`
@@ -22,7 +23,8 @@ type TicketResolution struct {
 
 type CreateTicketResolutionInput struct {
 	TicketID        int64        `json:"ticket_id" validate:"required"`
-	CauseID         int64        `json:"cause_id"`
+	CauseID         *int64       `json:"cause_id"`
+	CustomCause     string       `json:"custom_cause"`
 	SolutionID      *int64       `json:"solution_id"`
 	CustomSolution  string       `json:"custom_solution"`
 	ResolutionNotes string       `json:"resolution_notes"`

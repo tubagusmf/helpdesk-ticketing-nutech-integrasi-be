@@ -366,7 +366,11 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		) AS solution_attachment,
 
 		(
-			SELECT c.name
+			SELECT COALESCE(
+				NULLIF(BTRIM(tr.custom_cause), ''),
+				c.name,
+				''
+			)
 			FROM ticket_resolutions tr
 			LEFT JOIN causes c
 				ON c.id = tr.cause_id
@@ -714,7 +718,14 @@ func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticke
 			LEFT JOIN users AS cancelled_by
 				ON cancelled_by.id = tickets.cancelled_by_id
 		`).
-		Where("tickets.deleted_at IS NULL")
+		Where("tickets.deleted_at IS NULL").
+		Where(
+			"tickets.status IN ?",
+			[]model.TicketStatus{
+				model.StatusOpen,
+				model.StatusResolved,
+			},
+		)
 
 	if search != "" {
 		s := "%" + search + "%"
@@ -876,7 +887,11 @@ func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticke
 
 			COALESCE(
 				(
-					SELECT c.name
+					SELECT COALESCE(
+						NULLIF(BTRIM(tr.custom_cause), ''),
+						c.name,
+						''
+					)
 					FROM ticket_resolutions tr
 					LEFT JOIN causes c
 						ON c.id = tr.cause_id

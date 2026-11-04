@@ -32,54 +32,62 @@ func (r *DashboardRepo) GetSummary(ctx context.Context, filter model.DashboardFi
 
 	base := r.baseQuery(ctx, filter)
 
-	base.Session(&gorm.Session{}).
-		Count(&result.TotalTicket)
+	if err := base.Session(&gorm.Session{}).
+		Where(
+			"status IN ?",
+			[]model.TicketStatus{
+				model.StatusOpen,
+				model.StatusResolved,
+			},
+		).
+		Count(&result.TotalTicket).Error; err != nil {
+		return nil, err
+	}
 
-	base.Session(&gorm.Session{}).
+	if err := base.Session(&gorm.Session{}).
 		Where("status = ?", model.StatusOpen).
-		Count(&result.TicketOpen)
+		Count(&result.TicketOpen).Error; err != nil {
+		return nil, err
+	}
 
-	base.Session(&gorm.Session{}).
-		Where("status = ?", model.StatusOnHold).
-		Count(&result.TicketOnHold)
-
-	base.Session(&gorm.Session{}).
+	if err := base.Session(&gorm.Session{}).
 		Where("status = ?", model.StatusResolved).
-		Count(&result.TicketResolved)
+		Count(&result.TicketResolved).Error; err != nil {
+		return nil, err
+	}
 
-	base.Session(&gorm.Session{}).
-		Where("status = ?", model.StatusClosed).
-		Count(&result.TicketClosed)
-
-	base.Session(&gorm.Session{}).
-		Where("status = ?", model.StatusCancel).
-		Count(&result.TicketCancel)
-
-	base.Session(&gorm.Session{}).
+	if err := base.Session(&gorm.Session{}).
 		Where(
 			"status = ? AND due_at < ?",
 			model.StatusOpen,
 			time.Now(),
 		).
-		Count(&result.SLABreach)
+		Count(&result.SLABreach).Error; err != nil {
+		return nil, err
+	}
 
 	var avg float64
 
-	base.Session(&gorm.Session{}).
-		Where("resolved_at IS NOT NULL").
+	if err := base.Session(&gorm.Session{}).
+		Where(
+			"status = ? AND resolved_at IS NOT NULL",
+			model.StatusResolved,
+		).
 		Select(`
-			COALESCE(
-				AVG(
-					EXTRACT(
-						EPOCH FROM (
-							resolved_at - created_at
-						)
-					) / 3600
-				),
-				0
-			)
-		`).
-		Scan(&avg)
+            COALESCE(
+                AVG(
+                    EXTRACT(
+                        EPOCH FROM (
+                            resolved_at - created_at
+                        )
+                    ) / 3600
+                ),
+                0
+            )
+        `).
+		Scan(&avg).Error; err != nil {
+		return nil, err
+	}
 
 	result.AvgResolutionTime = avg
 
@@ -91,25 +99,17 @@ func (r *DashboardRepo) GetStatusDistribution(ctx context.Context, filter model.
 
 	base := r.baseQuery(ctx, filter)
 
-	base.Session(&gorm.Session{}).
+	if err := base.Session(&gorm.Session{}).
 		Where("status = ?", model.StatusOpen).
-		Count(&result.Open)
+		Count(&result.Open).Error; err != nil {
+		return nil, err
+	}
 
-	base.Session(&gorm.Session{}).
+	if err := base.Session(&gorm.Session{}).
 		Where("status = ?", model.StatusResolved).
-		Count(&result.Resolved)
-
-	base.Session(&gorm.Session{}).
-		Where("status = ?", model.StatusClosed).
-		Count(&result.Closed)
-
-	base.Session(&gorm.Session{}).
-		Where("status = ?", model.StatusOnHold).
-		Count(&result.OnHold)
-
-	base.Session(&gorm.Session{}).
-		Where("status = ?", model.StatusCancel).
-		Count(&result.Cancel)
+		Count(&result.Resolved).Error; err != nil {
+		return nil, err
+	}
 
 	return result, nil
 }
@@ -456,7 +456,7 @@ func (r *DashboardRepo) GetOpenTickets(ctx context.Context, filter model.Dashboa
 		Select(`
 			tickets.id,
 			tickets.ticket_code,
-			tickets.description AS title,
+			tickets.description,
 			projects.name AS project,
 			locations.name AS location,
 			tickets.priority,
@@ -528,9 +528,9 @@ func (r *DashboardRepo) GetProjectSummary(ctx context.Context, filter model.Dash
 	db := r.db.WithContext(ctx).
 		Table("tickets").
 		Joins(`
-			JOIN projects
-				ON projects.id = tickets.project_id
-		`).
+            JOIN projects
+                ON projects.id = tickets.project_id
+        `).
 		Where("tickets.deleted_at IS NULL").
 		Where("projects.deleted_at IS NULL")
 
@@ -539,34 +539,25 @@ func (r *DashboardRepo) GetProjectSummary(ctx context.Context, filter model.Dash
 
 	err := db.
 		Select(`
-			projects.id AS project_id,
-			projects.name AS project,
-			COUNT(tickets.id) AS total,
+            projects.id AS project_id,
+            projects.name AS project,
 
-			COUNT(*) FILTER (
-				WHERE tickets.status = 'OPEN'
-			) AS open,
+            COUNT(*) FILTER (
+                WHERE tickets.status IN ('OPEN', 'RESOLVED')
+            ) AS total,
 
-			COUNT(*) FILTER (
-				WHERE tickets.status = 'IN_PROGRESS'
-			) AS in_progress,
+            COUNT(*) FILTER (
+                WHERE tickets.status = 'OPEN'
+            ) AS open,
 
-			COUNT(*) FILTER (
-				WHERE tickets.status = 'ONHOLD'
-			) AS onhold,
-
-			COUNT(*) FILTER (
-				WHERE tickets.status = 'RESOLVED'
-			) AS resolved,
-
-			COUNT(*) FILTER (
-				WHERE tickets.status = 'CLOSED'
-			) AS closed
-		`).
+            COUNT(*) FILTER (
+                WHERE tickets.status = 'RESOLVED'
+            ) AS resolved
+        `).
 		Group(`
-			projects.id,
-			projects.name
-		`).
+            projects.id,
+            projects.name
+        `).
 		Order("total DESC").
 		Scan(&result).Error
 
@@ -925,6 +916,50 @@ func (r *DashboardRepo) GetStaffOfflineSummary(ctx context.Context, filter model
 
 	if err != nil {
 		return nil, err
+	}
+
+	return result, nil
+}
+
+func (r *DashboardRepo) GetResolvedTickets(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardTicket, error) {
+	var result []model.DashboardTicket
+
+	db := r.db.WithContext(ctx).
+		Table("tickets").
+		Joins(`
+            LEFT JOIN projects
+                ON projects.id = tickets.project_id
+        `).
+		Joins(`
+            LEFT JOIN locations
+                ON locations.id = tickets.location_id
+        `).
+		Where("tickets.deleted_at IS NULL").
+		Where("tickets.status = ?", model.StatusResolved)
+
+	db = applyFilter(db, filter)
+
+	err := db.
+		Select(`
+            tickets.id,
+            tickets.ticket_code,
+            tickets.description,
+            projects.name AS project,
+            locations.name AS location,
+            tickets.priority,
+            tickets.status,
+            tickets.created_at
+        `).
+		Order("tickets.created_at DESC").
+		Limit(5).
+		Scan(&result).Error
+
+	if err != nil {
+		return []model.DashboardTicket{}, err
+	}
+
+	if result == nil {
+		return []model.DashboardTicket{}, nil
 	}
 
 	return result, nil

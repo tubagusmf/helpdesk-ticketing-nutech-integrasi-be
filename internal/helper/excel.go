@@ -175,13 +175,55 @@ var ticketColumnWidths = map[string]float64{
 	"Q": 18, // Due At
 }
 
+const (
+	exportStatusOpen     = "OPEN"
+	exportStatusResolved = "RESOLVED"
+)
+
 var statusColors = map[string]string{
-	"OPEN":        "FFCCCC",
-	"IN_PROGRESS": "FFE699",
-	"RESOLVED":    "C6EFCE",
-	"CLOSED":      "D9D9D9",
-	"ONHOLD":      "BDD7EE",
-	"CANCEL":      "F4CCCC",
+	exportStatusOpen:     "FFCCCC",
+	exportStatusResolved: "C6EFCE",
+}
+
+func normalizeTicketStatus(status string) string {
+	return strings.ToUpper(strings.TrimSpace(status))
+}
+
+func isExportableTicketStatus(status string) bool {
+	switch normalizeTicketStatus(status) {
+	case exportStatusOpen, exportStatusResolved:
+		return true
+	default:
+		return false
+	}
+}
+
+func filterExportableTickets(tickets []*model.TicketResponse) []*model.TicketResponse {
+	filtered := make([]*model.TicketResponse, 0, len(tickets))
+
+	for _, ticket := range tickets {
+		if ticket == nil || !isExportableTicketStatus(string(ticket.Status)) {
+			continue
+		}
+
+		filtered = append(filtered, ticket)
+	}
+
+	return filtered
+}
+
+func filterExportableCustomTickets(tickets []*model.TicketExportRow) []*model.TicketExportRow {
+	filtered := make([]*model.TicketExportRow, 0, len(tickets))
+
+	for _, ticket := range tickets {
+		if ticket == nil || !isExportableTicketStatus(string(ticket.Status)) {
+			continue
+		}
+
+		filtered = append(filtered, ticket)
+	}
+
+	return filtered
 }
 
 func downloadImageFromURL(imageURL string) ([]byte, error) {
@@ -527,7 +569,8 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 
 		styleID := borderStyle
 		if index == 10 {
-			if statusStyle, ok := statusStyles[ticket.Status]; ok {
+			statusKey := normalizeTicketStatus(string(ticket.Status))
+			if statusStyle, ok := statusStyles[statusKey]; ok {
 				styleID = statusStyle
 			}
 		}
@@ -662,14 +705,20 @@ func writeSummarySheet(f *excelize.File, tickets []*model.TicketResponse) error 
 		return fmt.Errorf("create summary sheet: %w", err)
 	}
 
-	statusCount := make(map[string]int)
+	statusCount := map[string]int{
+		exportStatusOpen:     0,
+		exportStatusResolved: 0,
+	}
 
 	for _, ticket := range tickets {
 		if ticket == nil {
 			continue
 		}
 
-		statusCount[ticket.Status]++
+		status := normalizeTicketStatus(string(ticket.Status))
+		if isExportableTicketStatus(status) {
+			statusCount[status]++
+		}
 	}
 
 	headerStyle, err := createHeaderStyle(f)
@@ -701,7 +750,12 @@ func writeSummarySheet(f *excelize.File, tickets []*model.TicketResponse) error 
 
 	row := 2
 
-	for status, count := range statusCount {
+	// Urutan tetap dan kedua status ditampilkan meskipun totalnya nol.
+	for _, status := range []string{
+		exportStatusOpen,
+		exportStatusResolved,
+	} {
+		count := statusCount[status]
 		statusCell := fmt.Sprintf("A%d", row)
 		totalCell := fmt.Sprintf("B%d", row)
 
@@ -737,6 +791,8 @@ func writeSummarySheet(f *excelize.File, tickets []*model.TicketResponse) error 
 }
 
 func GenerateExcelTickets(tickets []*model.TicketResponse) (*bytes.Buffer, error) {
+	exportableTickets := filterExportableTickets(tickets)
+
 	f := excelize.NewFile()
 	defer f.Close()
 
@@ -775,7 +831,7 @@ func GenerateExcelTickets(tickets []*model.TicketResponse) (*bytes.Buffer, error
 
 	excelRow := 2
 
-	for _, ticket := range tickets {
+	for _, ticket := range exportableTickets {
 		if ticket == nil {
 			continue
 		}
@@ -812,7 +868,7 @@ func GenerateExcelTickets(tickets []*model.TicketResponse) (*bytes.Buffer, error
 		}
 	}
 
-	if err := writeSummarySheet(f, tickets); err != nil {
+	if err := writeSummarySheet(f, exportableTickets); err != nil {
 		return nil, err
 	}
 
@@ -975,6 +1031,8 @@ func GenerateCustomExcelTickets(tickets []*model.TicketExportRow, columns []stri
 		return nil, err
 	}
 
+	exportableTickets := filterExportableCustomTickets(tickets)
+
 	f := excelize.NewFile()
 	defer f.Close()
 
@@ -1061,7 +1119,7 @@ func GenerateCustomExcelTickets(tickets []*model.TicketExportRow, columns []stri
 
 	rowNumber := 2
 
-	for _, ticket := range tickets {
+	for _, ticket := range exportableTickets {
 		if ticket == nil {
 			continue
 		}
@@ -1119,7 +1177,8 @@ func GenerateCustomExcelTickets(tickets []*model.TicketExportRow, columns []stri
 			styleID := borderStyle
 
 			if column == "status" {
-				if statusStyle, ok := statusStyles[ticket.Status]; ok {
+				statusKey := normalizeTicketStatus(string(ticket.Status))
+				if statusStyle, ok := statusStyles[statusKey]; ok {
 					styleID = statusStyle
 				}
 			}

@@ -69,3 +69,7 @@ func (u *DashboardUsecase) GetStaffReassignSummary(ctx context.Context, filter m
 func (u *DashboardUsecase) GetStaffOfflineSummary(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardStaffOfflineSummary, error) {
 	return u.repo.GetStaffOfflineSummary(ctx, filter)
 }
+
+func (u *DashboardUsecase) GetResolvedTickets(ctx context.Context, filter model.DashboardFilter) ([]model.DashboardTicket, error) {
+	return u.repo.GetResolvedTickets(ctx, filter)
+}

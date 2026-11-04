@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/sirupsen/logrus"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/internal/model"
@@ -39,37 +40,49 @@ func NewTicketResolutionUsecase(
 
 func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in model.CreateTicketResolutionInput) (*model.TicketResolution, error) {
 	if in.Status != model.StatusResolved {
-		return nil, errors.New("resolution only allowed for RESOLVED status")
+		return nil, errors.New("resolution hanya diperbolehkan untuk status RESOLVED")
+	}
+
+	causeID := in.CauseID
+	if causeID != nil && *causeID <= 0 {
+		causeID = nil
+	}
+
+	customCause := strings.TrimSpace(in.CustomCause)
+	hasDropdownCause := causeID != nil
+	hasManualCause := customCause != ""
+
+	if hasDropdownCause == hasManualCause {
+		return nil, errors.New("isi penyebab secara manual")
+	}
+	if utf8.RuneCountInString(customCause) > 2000 {
+		return nil, errors.New("penyebab maksimal 2000 karakter")
 	}
 
 	solutionID := in.SolutionID
-
 	if solutionID != nil && *solutionID <= 0 {
 		solutionID = nil
 	}
 
 	customSolution := strings.TrimSpace(in.CustomSolution)
-
 	hasDropdownSolution := solutionID != nil
 	hasManualSolution := customSolution != ""
 
-	if in.CauseID <= 0 {
-		return nil, errors.New("penyebab wajib dipilih")
-	}
-
 	if hasDropdownSolution == hasManualSolution {
-		return nil, errors.New(
-			"pilih solusi dari dropdown atau isi solusi manual, jangan keduanya",
-		)
+		return nil, errors.New("isi solusi secara manual")
+	}
+	if utf8.RuneCountInString(customSolution) > 2000 {
+		return nil, errors.New("solusi maksimal 2000 karakter")
 	}
 
 	var ticket model.Ticket
-	if err := u.db.Where("id = ?", in.TicketID).First(&ticket).Error; err != nil {
+	if err := u.db.WithContext(ctx).
+		Where("id = ? AND deleted_at IS NULL", in.TicketID).
+		First(&ticket).Error; err != nil {
 		return nil, err
 	}
 
 	oldStatus := ticket.Status
-
 	if ticket.PausedAt != nil {
 		duration := time.Since(*ticket.PausedAt).Seconds()
 		ticket.TotalPaused += int64(duration)
@@ -77,16 +90,15 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 	}
 
 	completionTime := in.CompletionTime
-
 	if completionTime.IsZero() {
 		completionTime = time.Now()
 	}
-
 	resolvedAt := time.Now()
 
 	resolution := model.TicketResolution{
 		TicketID:        in.TicketID,
-		CauseID:         in.CauseID,
+		CauseID:         causeID,
+		CustomCause:     customCause,
 		SolutionID:      solutionID,
 		CustomSolution:  customSolution,
 		ResolutionNotes: in.ResolutionNotes,
@@ -94,7 +106,10 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		AttachmentURL:   in.AttachmentURL,
 	}
 
-	tx := u.db.Begin()
+	tx := u.db.WithContext(ctx).Begin()
+	if tx.Error != nil {
+		return nil, tx.Error
+	}
 
 	createdResolution, err := u.resolutionRepo.Create(ctx, tx, resolution)
 	if err != nil {
@@ -116,7 +131,6 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 
 	oldStatusStr := string(oldStatus)
 	newStatusStr := string(model.StatusResolved)
-
 	history := model.TicketHistory{
 		TicketID:  ticket.ID,
 		UserID:    userID,
@@ -125,12 +139,10 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		OldValue:  &oldStatusStr,
 		NewValue:  &newStatusStr,
 	}
-
 	if err := tx.Create(&history).Error; err != nil {
 		tx.Rollback()
 		return nil, err
 	}
-
 	if err := tx.Commit().Error; err != nil {
 		return nil, err
 	}
@@ -143,9 +155,7 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		model.ReferenceResolution,
 		createdResolution.ID,
 		"Tiket Diselesaikan",
-		"No Tiket: "+
-			ticket.TicketCode+
-			" | Tiket telah diselesaikan.",
+		"No Tiket: "+ticket.TicketCode+" | Tiket telah diselesaikan.",
 	)
 
 	ticketResp, err := u.ticketRepo.FindResponseByID(ctx, ticket.ID)
@@ -155,11 +165,7 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 
 	ws.BroadcastToRoles(
 		u.wsHub,
-		[]string{
-			"ADMINISTRATOR",
-			"STAFF",
-			"USER",
-		},
+		[]string{"ADMINISTRATOR", "STAFF", "USER"},
 		ws.Message{
 			Type: ws.EventTicketStatusUpdate,
 			Data: ticketResp,
@@ -178,7 +184,8 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 				"new_value":  newStatusStr,
 				"created_at": time.Now(),
 			},
-		})
+		},
+	)
 
 	return createdResolution, nil
 }
@@ -202,7 +209,6 @@ func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int
 	}
 
 	tx := u.db.Begin()
-
 	oldStatus := ticket.Status
 
 	if err := tx.Model(&model.Ticket{}).
@@ -216,7 +222,6 @@ func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int
 
 	oldStatusStr := string(oldStatus)
 	newStatusStr := string(in.Status)
-
 	history := model.TicketHistory{
 		TicketID:  ticket.ID,
 		UserID:    userID,
@@ -227,12 +232,10 @@ func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int
 	}
 
 	log.Infof("INSERT HISTORY: %+v", history)
-
 	if err := tx.Create(&history).Error; err != nil {
 		tx.Rollback()
 		return err
 	}
-
 	if err := tx.Commit().Error; err != nil {
 		return err
 	}
@@ -245,23 +248,13 @@ func (u *TicketResolutionUsecase) UpdateStatus(ctx context.Context, ticketID int
 
 	ws.BroadcastToRoles(
 		u.wsHub,
-		[]string{
-			"ADMINISTRATOR",
-			"STAFF",
-			"USER",
-		},
+		[]string{"ADMINISTRATOR", "STAFF", "USER"},
 		ws.Message{
 			Type: ws.EventTicketStatusUpdate,
 			Data: ticketResp,
 		},
 	)
 
-	publishTicketStatusNotification(
-		&ticket,
-		userID,
-		oldStatus,
-		in.Status,
-	)
-
+	publishTicketStatusNotification(&ticket, userID, oldStatus, in.Status)
 	return nil
 }

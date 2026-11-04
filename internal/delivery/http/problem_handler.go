@@ -53,10 +53,6 @@ func (h *ProblemHandler) checkAdmin(c echo.Context) error {
 }
 
 func (h *ProblemHandler) FindAll(c echo.Context) error {
-	if err := h.checkAdmin(c); err != nil {
-		return err
-	}
-
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	if page < 1 {
 		page = 1

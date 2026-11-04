@@ -8,10 +8,7 @@ import (
 type DashboardSummary struct {
 	TotalTicket       int64   `json:"total_ticket"`
 	TicketOpen        int64   `json:"ticket_open"`
-	TicketOnHold      int64   `json:"ticket_onhold"`
 	TicketResolved    int64   `json:"ticket_resolved"`
-	TicketClosed      int64   `json:"ticket_closed"`
-	TicketCancel      int64   `json:"ticket_cancel"`
 	SLABreach         int64   `json:"sla_breach"`
 	AvgResolutionTime float64 `json:"avg_resolution_time"`
 }
@@ -32,12 +29,8 @@ type DashboardProject struct {
 }
 
 type StatusDistribution struct {
-	Open       int64 `json:"open"`
-	InProgress int64 `json:"in_progress"`
-	Resolved   int64 `json:"resolved"`
-	Closed     int64 `json:"closed"`
-	OnHold     int64 `json:"onhold"`
-	Cancel     int64 `json:"cancel"`
+	Open     int64 `json:"open"`
+	Resolved int64 `json:"resolved"`
 }
 
 type PriorityDistribution struct {
@@ -79,25 +72,19 @@ type DashboardTicket struct {
 }
 
 type DashboardProjectSummary struct {
-	ProjectID  int64  `json:"project_id"`
-	Project    string `json:"project"`
-	Total      int64  `json:"total"`
-	Open       int64  `json:"open"`
-	InProgress int64  `json:"in_progress"`
-	OnHold     int64  `json:"onhold"`
-	Resolved   int64  `json:"resolved"`
-	Closed     int64  `json:"closed"`
+	ProjectID int64  `json:"project_id"`
+	Project   string `json:"project"`
+	Total     int64  `json:"total"`
+	Open      int64  `json:"open"`
+	Resolved  int64  `json:"resolved"`
 }
 
 type DashboardStaffSummary struct {
-	StaffID    int64  `json:"staff_id"`
-	StaffName  string `json:"staff_name"`
-	Total      int64  `json:"total"`
-	Open       int64  `json:"open"`
-	InProgress int64  `json:"in_progress"`
-	OnHold     int64  `json:"onhold"`
-	Resolved   int64  `json:"resolved"`
-	Closed     int64  `json:"closed"`
+	StaffID   int64  `json:"staff_id"`
+	StaffName string `json:"staff_name"`
+	Total     int64  `json:"total"`
+	Open      int64  `json:"open"`
+	Resolved  int64  `json:"resolved"`
 }
 
 type DashboardStaffReassignSummary struct {
@@ -137,4 +124,5 @@ type IDashboardRepository interface {
 	GetStaffSummary(ctx context.Context, filter DashboardFilter) ([]DashboardStaffSummary, error)
 	GetStaffReassignSummary(ctx context.Context, filter DashboardFilter) ([]DashboardStaffReassignSummary, error)
 	GetStaffOfflineSummary(ctx context.Context, filter DashboardFilter) ([]DashboardStaffOfflineSummary, error)
+	GetResolvedTickets(ctx context.Context, filter DashboardFilter) ([]DashboardTicket, error)
 }
