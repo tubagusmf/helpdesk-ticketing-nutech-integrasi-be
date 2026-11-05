@@ -75,7 +75,7 @@ func (h *Hub) Run() {
 		case msg := <-h.BroadcastToRole:
 			clients := h.Clients[msg.Role]
 
-			logrus.Infof(
+			logrus.Debugf(
 				"[WS BROADCAST ROLE] role=%s clients=%d",
 				msg.Role,
 				len(clients),
@@ -123,7 +123,7 @@ func (h *Hub) registerClient(client *Client) {
 	h.Clients[client.Role][client] = true
 	h.UserClients[client.UserID][client] = true
 
-	logrus.Infof(
+	logrus.Debugf(
 		"[WS REGISTER] user_id=%d role=%s connections=%d",
 		client.UserID,
 		client.Role,
@@ -162,7 +162,7 @@ func (h *Hub) unregisterClient(client *Client) {
 
 	delete(userClients, client)
 
-	logrus.Infof(
+	logrus.Debugf(
 		"[WS UNREGISTER] user_id=%d remaining_connections=%d",
 		client.UserID,
 		len(userClients),
@@ -215,7 +215,7 @@ func (h *Hub) runPresenceUpdates() {
 			continue
 		}
 
-		logrus.Infof(
+		logrus.Debugf(
 			"[WS PRESENCE] user_id=%d is_online=%t",
 			update.UserID,
 			update.IsOnline,

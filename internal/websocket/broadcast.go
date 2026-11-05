@@ -8,20 +8,18 @@ import (
 
 func BroadcastToRoles(hub *Hub, roles []string, message Message) {
 	payload, err := json.Marshal(message)
+
 	if err != nil {
-		logrus.Error(
-			"failed marshal websocket message:",
-			err,
+		logrus.WithError(err).Error(
+			"Failed to marshal WebSocket message",
 		)
 		return
 	}
 
-	logrus.Infof(
-		"[WS BROADCAST] type=%s roles=%v payload=%s",
-		message.Type,
-		roles,
-		string(payload),
-	)
+	logrus.WithFields(logrus.Fields{
+		"event": message.Type,
+		"roles": roles,
+	}).Debug("WebSocket broadcast dispatched")
 
 	for _, role := range roles {
 		go func(r string) {
