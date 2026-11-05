@@ -39,6 +39,23 @@ func (h *TicketResolutionHandler) Create(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "user not found")
 	}
 
+	var partCategoryID *int64
+
+	rawPartCategoryID := strings.TrimSpace(c.FormValue("part_category_id"))
+
+	if rawPartCategoryID != "" {
+		parsed, parseErr := strconv.ParseInt(rawPartCategoryID, 10, 64)
+
+		if parseErr != nil || parsed <= 0 {
+			return echo.NewHTTPError(
+				http.StatusBadRequest,
+				"part_category_id tidak valid",
+			)
+		}
+
+		partCategoryID = &parsed
+	}
+
 	var causeID *int64
 	rawCauseID := strings.TrimSpace(c.FormValue("cause_id"))
 	if rawCauseID != "" {
@@ -121,6 +138,7 @@ func (h *TicketResolutionHandler) Create(c echo.Context) error {
 
 	input := model.CreateTicketResolutionInput{
 		TicketID:        ticketID,
+		PartCategoryID:  partCategoryID,
 		CauseID:         causeID,
 		CustomCause:     customCause,
 		SolutionID:      solutionID,

@@ -35,6 +35,7 @@ func (r *TicketResolutionRepo) FindByTicketID(ctx context.Context, ticketID int6
 	err := r.db.WithContext(ctx).
 		Preload("Cause").
 		Preload("Solution").
+		Preload("PartCategory").
 		Where("ticket_id = ?", ticketID).
 		First(&resolution).Error
 

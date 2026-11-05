@@ -69,6 +69,7 @@ type TicketResponse struct {
 	AssetCode                string                   `json:"asset_code"`
 	PartID                   int64                    `json:"part_id"`
 	PartName                 string                   `json:"part_name"`
+	PartCategoryName         string                   `json:"part_category_name"`
 	AssetID                  int64                    `json:"asset_id"`
 	ReporterName             string                   `json:"reporter_name"`
 	ReporterID               int64                    `json:"reporter_id"`
@@ -125,6 +126,7 @@ type TicketExportRow struct {
 	CancelledAt              *time.Time `json:"cancelled_at"`
 	CancelledByName          string     `json:"cancelled_by_name"`
 	TicketAttachmentURL      *string    `json:"ticket_attachment_url"`
+	ResolutionPartCategory   *string    `json:"resolution_part_category"`
 	ResolutionCause          *string    `json:"resolution_cause"`
 	ResolutionSolution       *string    `json:"resolution_solution"`
 	ResolutionNotes          *string    `json:"resolution_notes"`

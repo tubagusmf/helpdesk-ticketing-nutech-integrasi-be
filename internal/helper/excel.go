@@ -51,7 +51,7 @@ var customTicketColumns = map[string]CustomExcelColumn{
 		Key: "part", Title: "Part", Width: 17,
 	},
 	"asset": {
-		Key: "asset", Title: "Asset", Width: 15,
+		Key: "asset", Title: "Part ID", Width: 15,
 	},
 	"reporter": {
 		Key: "reporter", Title: "Reporter", Width: 18,
@@ -85,6 +85,9 @@ var customTicketColumns = map[string]CustomExcelColumn{
 	},
 	"attachment": {
 		Key: "attachment", Title: "Ticket Attachment", Width: 24,
+	},
+	"resolution_part_category": {
+		Key: "resolution_part_category", Title: "Kategori Part", Width: 24,
 	},
 	"resolution_cause": {
 		Key: "resolution_cause", Title: "Resolution Cause", Width: 24,
@@ -139,17 +142,16 @@ var ticketHeaders = []string{
 	"Ticket Code",
 	"Project",
 	"Location",
-	"Asset",
+	"Part",
+	"Part ID",
 	"Reporter",
 	"Assigned",
 	"Priority",
 	"Permasalahan",
+	"Kategori Part",
 	"Penyebab",
 	"Solusi",
 	"Status",
-	"Alasan Pembatalan",
-	"Waktu Pembatalan",
-	"Dibatalkan Oleh",
 	"Foto Sesudah",
 	"Created At",
 	"Due At",
@@ -159,20 +161,19 @@ var ticketColumnWidths = map[string]float64{
 	"A": 18, // Ticket Code
 	"B": 18, // Project
 	"C": 17, // Location
-	"D": 15, // Asset
-	"E": 18, // Reporter
-	"F": 18, // Assigned
-	"G": 12, // Priority
-	"H": 28, // Permasalahan
-	"I": 22, // Penyebab
-	"J": 26, // Solusi
-	"K": 14, // Status
-	"L": 32, // Alasan Pembatalan
-	"M": 22, // Waktu Pembatalan
-	"N": 22, // Dibatalkan Oleh
-	"O": 22, // Foto Sesudah
-	"P": 18, // Created At
-	"Q": 18, // Due At
+	"D": 17, // Part
+	"E": 15, // Part ID
+	"F": 18, // Reporter
+	"G": 18, // Assigned
+	"H": 12, // Priority
+	"I": 28, // Permasalahan
+	"J": 24, // Kategori Part
+	"K": 22, // Penyebab
+	"L": 26, // Solusi
+	"M": 14, // Status
+	"N": 22, // Foto Sesudah
+	"O": 18, // Created At
+	"P": 18, // Due At
 }
 
 const (
@@ -529,37 +530,53 @@ func writeTicketHeaders(f *excelize.File, sheet string, styleID int) error {
 }
 
 func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.TicketResponse, borderStyle int, statusStyles map[string]int) error {
-	if err := f.SetRowHeight(sheet, row, rowHeight); err != nil {
-		return fmt.Errorf("set row height: %w", err)
+	if err := f.SetRowHeight(
+		sheet,
+		row,
+		rowHeight,
+	); err != nil {
+		return fmt.Errorf(
+			"set row height: %w",
+			err,
+		)
 	}
 
+	// DATA TIKET
 	values := []interface{}{
-		ticket.TicketCode,
-		ticket.ProjectName,
-		ticket.LocationName,
-		ticket.AssetCode,
-		ticket.ReporterName,
-		ticket.AssignedToName,
-		ticket.Priority,
-		ticket.Description,
-		ticket.CauseName,
-		ticket.SolutionName,
-		ticket.Status,
-		customStringValue(ticket.CancellationReason),
-		customTimeValue(ticket.CancelledAt),
-		ticket.CancelledByName,
+		ticket.TicketCode,       // A - Ticket Code
+		ticket.ProjectName,      // B - Project
+		ticket.LocationName,     // C - Location
+		ticket.PartName,         // D - Part
+		ticket.AssetCode,        // E - Part ID
+		ticket.ReporterName,     // F - Reporter
+		ticket.AssignedToName,   // G - Assigned
+		ticket.Priority,         // H - Priority
+		ticket.Description,      // I - Permasalahan
+		ticket.PartCategoryName, // J - Kategori Part
+		ticket.CauseName,        // K - Penyebab
+		ticket.SolutionName,     // L - Solusi
+		ticket.Status,           // M - Status
 	}
 
 	for index, value := range values {
+
 		cell, err := excelize.CoordinatesToCellName(
 			index+1,
 			row,
 		)
+
 		if err != nil {
-			return fmt.Errorf("create ticket cell: %w", err)
+			return fmt.Errorf(
+				"create ticket cell: %w",
+				err,
+			)
 		}
 
-		if err := f.SetCellValue(sheet, cell, value); err != nil {
+		if err := f.SetCellValue(
+			sheet,
+			cell,
+			value,
+		); err != nil {
 			return fmt.Errorf(
 				"set ticket value %s: %w",
 				cell,
@@ -568,14 +585,23 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		}
 
 		styleID := borderStyle
-		if index == 10 {
-			statusKey := normalizeTicketStatus(string(ticket.Status))
+
+		if index == 12 {
+			statusKey := normalizeTicketStatus(
+				string(ticket.Status),
+			)
+
 			if statusStyle, ok := statusStyles[statusKey]; ok {
 				styleID = statusStyle
 			}
 		}
 
-		if err := f.SetCellStyle(sheet, cell, cell, styleID); err != nil {
+		if err := f.SetCellStyle(
+			sheet,
+			cell,
+			cell,
+			styleID,
+		); err != nil {
 			return fmt.Errorf(
 				"set ticket style %s: %w",
 				cell,
@@ -584,7 +610,7 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		}
 	}
 
-	imageCell := fmt.Sprintf("O%d", row)
+	imageCell := fmt.Sprintf("N%d", row)
 
 	if err := f.SetCellStyle(
 		sheet,
@@ -592,17 +618,22 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		imageCell,
 		borderStyle,
 	); err != nil {
-		return fmt.Errorf("set image cell style: %w", err)
+		return fmt.Errorf(
+			"set image cell style: %w",
+			err,
+		)
 	}
 
 	if ticket.SolutionAttachment != nil &&
 		strings.TrimSpace(*ticket.SolutionAttachment) != "" {
+
 		if err := addResolutionImage(
 			f,
 			sheet,
 			imageCell,
 			*ticket.SolutionAttachment,
 		); err != nil {
+
 			fmt.Printf(
 				"failed to add resolution image for ticket %s: %v\n",
 				ticket.TicketCode,
@@ -622,13 +653,17 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		}
 	}
 
-	createdAtCell := fmt.Sprintf("P%d", row)
+	createdAtCell := fmt.Sprintf("O%d", row)
+
 	if err := f.SetCellValue(
 		sheet,
 		createdAtCell,
 		ticket.CreatedAt.Format("2006-01-02 15:04"),
 	); err != nil {
-		return fmt.Errorf("set created at: %w", err)
+		return fmt.Errorf(
+			"set created at: %w",
+			err,
+		)
 	}
 
 	if err := f.SetCellStyle(
@@ -637,16 +672,23 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		createdAtCell,
 		borderStyle,
 	); err != nil {
-		return fmt.Errorf("set created at style: %w", err)
+		return fmt.Errorf(
+			"set created at style: %w",
+			err,
+		)
 	}
 
-	dueAtCell := fmt.Sprintf("Q%d", row)
+	dueAtCell := fmt.Sprintf("P%d", row)
+
 	if err := f.SetCellValue(
 		sheet,
 		dueAtCell,
 		ticket.DueAt.Format("2006-01-02 15:04"),
 	); err != nil {
-		return fmt.Errorf("set due at: %w", err)
+		return fmt.Errorf(
+			"set due at: %w",
+			err,
+		)
 	}
 
 	if err := f.SetCellStyle(
@@ -655,7 +697,10 @@ func writeTicketRow(f *excelize.File, sheet string, row int, ticket *model.Ticke
 		dueAtCell,
 		borderStyle,
 	); err != nil {
-		return fmt.Errorf("set due at style: %w", err)
+		return fmt.Errorf(
+			"set due at style: %w",
+			err,
+		)
 	}
 
 	return nil
@@ -980,6 +1025,8 @@ func getCustomTicketValue(ticket *model.TicketExportRow, column string) interfac
 		return ticket.CancelledByName
 	case "attachment":
 		return customStringValue(ticket.TicketAttachmentURL)
+	case "resolution_part_category":
+		return customStringValue(ticket.ResolutionPartCategory)
 	case "resolution_cause":
 		return customStringValue(ticket.ResolutionCause)
 	case "resolution_solution":

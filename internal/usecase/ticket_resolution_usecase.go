@@ -43,6 +43,12 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		return nil, errors.New("resolution hanya diperbolehkan untuk status RESOLVED")
 	}
 
+	partCategoryID := in.PartCategoryID
+
+	if partCategoryID != nil && *partCategoryID <= 0 {
+		partCategoryID = nil
+	}
+
 	causeID := in.CauseID
 	if causeID != nil && *causeID <= 0 {
 		causeID = nil
@@ -82,6 +88,24 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 		return nil, err
 	}
 
+	if partCategoryID != nil {
+		var category model.PartCategory
+
+		err := u.db.WithContext(ctx).
+			Where(
+				"id = ? AND part_id = ? AND deleted_at IS NULL",
+				*partCategoryID,
+				ticket.PartID,
+			).
+			First(&category).Error
+
+		if err != nil {
+			return nil, errors.New(
+				"kategori part tidak valid",
+			)
+		}
+	}
+
 	oldStatus := ticket.Status
 	if ticket.PausedAt != nil {
 		duration := time.Since(*ticket.PausedAt).Seconds()
@@ -97,6 +121,7 @@ func (u *TicketResolutionUsecase) Create(ctx context.Context, userID int64, in m
 
 	resolution := model.TicketResolution{
 		TicketID:        in.TicketID,
+		PartCategoryID:  partCategoryID,
 		CauseID:         causeID,
 		CustomCause:     customCause,
 		SolutionID:      solutionID,

@@ -88,6 +88,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	appSettingRepo := repository.NewAppSettingRepo(postgresDB)
 	fcmTokenRepo := repository.NewFCMTokenRepo(postgresDB)
 	problemRepo := repository.NewProblemRepo(postgresDB)
+	partCategoryRepo := repository.NewPartCategoryRepo(postgresDB)
 
 	userUsecase := usecase.NewUserUsecase(userRepo, projectRepo, appSettingRepo)
 	hub := ws.NewHub(userUsecase)
@@ -110,6 +111,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	appSettingUsecase := usecase.NewAppSettingUsecase(appSettingRepo)
 	fcmTokenUsecase := usecase.NewFCMTokenUsecase(fcmTokenRepo)
 	problemUsecase := usecase.NewProblemUsecase(problemRepo)
+	partCategoryUsecase := usecase.NewPartCategoryUsecase(partCategoryRepo, partRepo)
 
 	ticketWorker := worker.NewTicketWorker(postgresDB, hub)
 	go ticketWorker.Start()
@@ -164,6 +166,7 @@ func httpServer(cmd *cobra.Command, args []string) {
 	handlerHttp.NewAppSettingHandler(e, appSettingUsecase)
 	handlerHttp.NewFCMTokenHandler(e, fcmTokenUsecase)
 	handlerHttp.NewProblemHandler(e, problemUsecase)
+	handlerHttp.NewPartCategoryHandler(e, partCategoryUsecase)
 
 	if err := os.MkdirAll(helper.UploadDir(), 0750); err != nil {
 		log.Fatalf("Failed to create upload directory: %v", err)

@@ -6,16 +6,18 @@ import (
 )
 
 type TicketResolution struct {
-	ID              int64     `json:"id"`
-	TicketID        int64     `json:"ticket_id"`
-	CauseID         *int64    `json:"cause_id"`
-	CustomCause     string    `json:"custom_cause"`
-	SolutionID      *int64    `json:"solution_id"`
-	CustomSolution  string    `json:"custom_solution"`
-	ResolutionNotes string    `json:"resolution_notes"`
-	CompletionTime  time.Time `json:"completion_time"`
-	AttachmentURL   string    `json:"attachment_url"`
-	CreatedAt       time.Time `json:"created_at"`
+	ID              int64         `json:"id"`
+	TicketID        int64         `json:"ticket_id"`
+	CauseID         *int64        `json:"cause_id"`
+	CustomCause     string        `json:"custom_cause"`
+	SolutionID      *int64        `json:"solution_id"`
+	CustomSolution  string        `json:"custom_solution"`
+	ResolutionNotes string        `json:"resolution_notes"`
+	CompletionTime  time.Time     `json:"completion_time"`
+	AttachmentURL   string        `json:"attachment_url"`
+	CreatedAt       time.Time     `json:"created_at"`
+	PartCategoryID  *int64        `json:"part_category_id"`
+	PartCategory    *PartCategory `json:"part_category,omitempty"`
 
 	Cause    *Cause    `json:"cause,omitempty"`
 	Solution *Solution `json:"solution,omitempty"`
@@ -23,6 +25,7 @@ type TicketResolution struct {
 
 type CreateTicketResolutionInput struct {
 	TicketID        int64        `json:"ticket_id" validate:"required"`
+	PartCategoryID  *int64       `json:"part_category_id"`
 	CauseID         *int64       `json:"cause_id"`
 	CustomCause     string       `json:"custom_cause"`
 	SolutionID      *int64       `json:"solution_id"`

@@ -397,6 +397,20 @@ func (r *TicketRepo) FindAll(ctx context.Context, filter model.Ticket, search st
 		locations.name AS location_name,
 		parts.name AS part_name,
 		asset_ids.name AS asset_code,
+
+		COALESCE(
+			(
+				SELECT pc.name
+				FROM ticket_resolutions tr
+				LEFT JOIN part_categories pc
+					ON pc.id = tr.part_category_id
+				WHERE tr.ticket_id = tickets.id
+				ORDER BY tr.created_at DESC, tr.id DESC
+				LIMIT 1
+			),
+			''
+		) AS part_category_name,
+
 		reporter.name AS reporter_name,
 		
 		CASE
@@ -884,6 +898,19 @@ func (r *TicketRepo) FindForCustomExport(ctx context.Context, filter model.Ticke
 			tickets.cancelled_at,
 			cancelled_by.name AS cancelled_by_name,
 			tickets.attachment AS ticket_attachment_url,
+
+			COALESCE(
+				(
+					SELECT pc.name
+					FROM ticket_resolutions tr
+					LEFT JOIN part_categories pc
+						ON pc.id = tr.part_category_id
+					WHERE tr.ticket_id = tickets.id
+					ORDER BY tr.created_at DESC, tr.id DESC
+					LIMIT 1
+				),
+				''
+			) AS resolution_part_category,
 
 			COALESCE(
 				(
