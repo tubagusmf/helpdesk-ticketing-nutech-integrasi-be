@@ -23,6 +23,7 @@ func NewProblemHandler(e *echo.Echo, problemUsecase model.IProblemUsecase) {
 	group := e.Group("/v1/problems")
 
 	group.GET("", handler.FindAll, AuthMiddleware)
+	group.GET("/part/:part_id", handler.FindByPartID, AuthMiddleware)
 	group.POST("/create", handler.Create, AuthMiddleware)
 	group.PUT("/update/:id", handler.Update, AuthMiddleware)
 	group.DELETE("/delete/:id", handler.Delete, AuthMiddleware)
@@ -59,14 +60,11 @@ func (h *ProblemHandler) FindAll(c echo.Context) error {
 	}
 
 	limit, _ := strconv.Atoi(c.QueryParam("limit"))
-
 	if limit != 10 && limit != 25 && limit != 50 {
 		limit = 10
 	}
 
-	search := strings.TrimSpace(
-		c.QueryParam("name"),
-	)
+	search := strings.TrimSpace(c.QueryParam("name"))
 
 	data, total, err := h.problemUsecase.FindAll(
 		c.Request().Context(),
@@ -91,6 +89,38 @@ func (h *ProblemHandler) FindAll(c echo.Context) error {
 		"page":       page,
 		"total_data": total,
 		"total_page": totalPage,
+	})
+}
+
+func (h *ProblemHandler) FindByPartID(c echo.Context) error {
+	partID, err := strconv.ParseInt(
+		c.Param("part_id"),
+		10,
+		64,
+	)
+
+	if err != nil || partID <= 0 {
+		return echo.NewHTTPError(
+			http.StatusBadRequest,
+			"Part ID tidak valid",
+		)
+	}
+
+	data, err := h.problemUsecase.FindByPartID(
+		c.Request().Context(),
+		partID,
+	)
+
+	if err != nil {
+		return echo.NewHTTPError(
+			http.StatusInternalServerError,
+			err.Error(),
+		)
+	}
+
+	return c.JSON(http.StatusOK, map[string]interface{}{
+		"message": "data permasalahan berhasil diambil",
+		"data":    data,
 	})
 }
 
@@ -134,11 +164,7 @@ func (h *ProblemHandler) Update(c echo.Context) error {
 		return err
 	}
 
-	id, err := strconv.ParseInt(
-		c.Param("id"),
-		10,
-		64,
-	)
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 
 	if err != nil || id <= 0 {
 		return echo.NewHTTPError(
@@ -183,11 +209,7 @@ func (h *ProblemHandler) Delete(c echo.Context) error {
 		return err
 	}
 
-	id, err := strconv.ParseInt(
-		c.Param("id"),
-		10,
-		64,
-	)
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
 
 	if err != nil || id <= 0 {
 		return echo.NewHTTPError(
@@ -196,10 +218,7 @@ func (h *ProblemHandler) Delete(c echo.Context) error {
 		)
 	}
 
-	err = h.problemUsecase.Delete(
-		c.Request().Context(),
-		id,
-	)
+	err = h.problemUsecase.Delete(c.Request().Context(), id)
 
 	if err != nil {
 		status := http.StatusInternalServerError

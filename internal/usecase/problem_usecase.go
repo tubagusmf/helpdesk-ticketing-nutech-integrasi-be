@@ -23,21 +23,15 @@ func validateProblemName(name string) (string, error) {
 	name = strings.TrimSpace(name)
 
 	if name == "" {
-		return "", errors.New(
-			"nama permasalahan wajib diisi",
-		)
+		return "", errors.New("nama permasalahan wajib diisi")
 	}
 
 	if !utf8.ValidString(name) {
-		return "", errors.New(
-			"nama permasalahan tidak valid",
-		)
+		return "", errors.New("nama permasalahan tidak valid")
 	}
 
 	if utf8.RuneCountInString(name) > 255 {
-		return "", errors.New(
-			"nama permasalahan maksimal 255 karakter",
-		)
+		return "", errors.New("nama permasalahan maksimal 255 karakter")
 	}
 
 	return name, nil
@@ -52,12 +46,15 @@ func (u *ProblemUsecase) FindAll(ctx context.Context, search string, page int, l
 		limit = 10
 	}
 
-	return u.problemRepo.FindAll(
-		ctx,
-		strings.TrimSpace(search),
-		page,
-		limit,
-	)
+	return u.problemRepo.FindAll(ctx, strings.TrimSpace(search), page, limit)
+}
+
+func (u *ProblemUsecase) FindByPartID(ctx context.Context, partID int64) ([]*model.Problem, error) {
+	if partID <= 0 {
+		return nil, errors.New("Part ID tidak valid")
+	}
+
+	return u.problemRepo.FindByPartID(ctx, partID)
 }
 
 func (u *ProblemUsecase) Create(ctx context.Context, in model.ProblemInput) (*model.Problem, error) {
@@ -66,9 +63,14 @@ func (u *ProblemUsecase) Create(ctx context.Context, in model.ProblemInput) (*mo
 		return nil, err
 	}
 
+	if in.PartID <= 0 {
+		return nil, errors.New("Part wajib dipilih")
+	}
+
 	exists, err := u.problemRepo.ExistsByName(
 		ctx,
 		name,
+		in.PartID,
 		0,
 	)
 	if err != nil {
@@ -77,26 +79,25 @@ func (u *ProblemUsecase) Create(ctx context.Context, in model.ProblemInput) (*mo
 
 	if exists {
 		return nil, errors.New(
-			"permasalahan tersebut sudah terdaftar",
+			"permasalahan tersebut sudah terdaftar pada Part ini",
 		)
 	}
 
 	problem := &model.Problem{
-		Name: name,
+		Name:   name,
+		PartID: in.PartID,
 	}
 
 	if err := u.problemRepo.Create(ctx, problem); err != nil {
 		return nil, err
 	}
 
-	return problem, nil
+	return u.problemRepo.FindByID(ctx, problem.ID)
 }
 
 func (u *ProblemUsecase) Update(ctx context.Context, id int64, in model.ProblemInput) (*model.Problem, error) {
 	if id <= 0 {
-		return nil, errors.New(
-			"ID permasalahan tidak valid",
-		)
+		return nil, errors.New("ID permasalahan tidak valid")
 	}
 
 	name, err := validateProblemName(in.Name)
@@ -104,9 +105,14 @@ func (u *ProblemUsecase) Update(ctx context.Context, id int64, in model.ProblemI
 		return nil, err
 	}
 
+	if in.PartID <= 0 {
+		return nil, errors.New("Part wajib dipilih")
+	}
+
 	exists, err := u.problemRepo.ExistsByName(
 		ctx,
 		name,
+		in.PartID,
 		id,
 	)
 	if err != nil {
@@ -115,13 +121,14 @@ func (u *ProblemUsecase) Update(ctx context.Context, id int64, in model.ProblemI
 
 	if exists {
 		return nil, errors.New(
-			"permasalahan tersebut sudah terdaftar",
+			"permasalahan tersebut sudah terdaftar pada Part ini",
 		)
 	}
 
 	problem := &model.Problem{
-		ID:   id,
-		Name: name,
+		ID:     id,
+		Name:   name,
+		PartID: in.PartID,
 	}
 
 	if err := u.problemRepo.Update(ctx, problem); err != nil {
@@ -133,9 +140,7 @@ func (u *ProblemUsecase) Update(ctx context.Context, id int64, in model.ProblemI
 
 func (u *ProblemUsecase) Delete(ctx context.Context, id int64) error {
 	if id <= 0 {
-		return errors.New(
-			"ID permasalahan tidak valid",
-		)
+		return errors.New("ID permasalahan tidak valid")
 	}
 
 	return u.problemRepo.Delete(ctx, id)

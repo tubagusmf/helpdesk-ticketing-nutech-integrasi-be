@@ -22,11 +22,13 @@ func (r *ProblemRepo) FindAll(ctx context.Context, search string, page int, limi
 
 	query := r.db.WithContext(ctx).
 		Model(&model.Problem{}).
-		Where("deleted_at IS NULL")
+		Where("problems.deleted_at IS NULL").
+		Preload("Part").
+		Preload("Part.Project")
 
 	if search != "" {
 		query = query.Where(
-			"name ILIKE ?",
+			"problems.name ILIKE ?",
 			"%"+search+"%",
 		)
 	}
@@ -38,7 +40,7 @@ func (r *ProblemRepo) FindAll(ctx context.Context, search string, page int, limi
 	offset := (page - 1) * limit
 
 	if err := query.
-		Order("name ASC").
+		Order("problems.name ASC").
 		Limit(limit).
 		Offset(offset).
 		Find(&data).Error; err != nil {
@@ -52,7 +54,9 @@ func (r *ProblemRepo) FindByID(ctx context.Context, id int64) (*model.Problem, e
 	var problem model.Problem
 
 	err := r.db.WithContext(ctx).
-		Where("id = ? AND deleted_at IS NULL", id).
+		Preload("Part").
+		Preload("Part.Project").
+		Where("problems.id = ? AND problems.deleted_at IS NULL", id).
 		First(&problem).Error
 
 	if err != nil {
@@ -62,12 +66,31 @@ func (r *ProblemRepo) FindByID(ctx context.Context, id int64) (*model.Problem, e
 	return &problem, nil
 }
 
-func (r *ProblemRepo) ExistsByName(ctx context.Context, name string, excludeID int64) (bool, error) {
+func (r *ProblemRepo) FindByPartID(ctx context.Context, partID int64) ([]*model.Problem, error) {
+	var data []*model.Problem
+
+	err := r.db.WithContext(ctx).
+		Where(
+			"part_id = ? AND deleted_at IS NULL",
+			partID,
+		).
+		Order("name ASC").
+		Find(&data).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return data, nil
+}
+
+func (r *ProblemRepo) ExistsByName(ctx context.Context, name string, partID int64, excludeID int64) (bool, error) {
 	var count int64
 
 	query := r.db.WithContext(ctx).
 		Model(&model.Problem{}).
 		Where("LOWER(name) = LOWER(?)", name).
+		Where("part_id = ?", partID).
 		Where("deleted_at IS NULL")
 
 	if excludeID > 0 {
@@ -100,6 +123,7 @@ func (r *ProblemRepo) Update(ctx context.Context, problem *model.Problem) error 
 		).
 		Updates(map[string]interface{}{
 			"name":       problem.Name,
+			"part_id":    problem.PartID,
 			"updated_at": time.Now(),
 		})
 
