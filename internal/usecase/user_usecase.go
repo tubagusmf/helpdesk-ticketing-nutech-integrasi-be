@@ -69,7 +69,8 @@ func (u *UserUsecase) Login(ctx context.Context, in model.LoginInput) (string, e
 
 func (u *UserUsecase) Create(ctx context.Context, in model.CreateUserInput) (string, error) {
 	log := logrus.WithFields(logrus.Fields{
-		"in": in,
+		"event":   "user_create",
+		"role_id": in.RoleID,
 	})
 
 	if err := validate.Struct(in); err != nil {

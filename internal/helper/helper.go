@@ -2,7 +2,8 @@ package helper
 
 import (
 	"context"
-	"os"
+	"errors"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
@@ -27,6 +28,16 @@ func GenerateTokenWithTTL(user model.User, ttl time.Duration) (string, error) {
 		ttl = 10 * time.Hour
 	}
 
+	signingKey := strings.TrimSpace(
+		config.JWTSigningKey(),
+	)
+
+	if signingKey == "" {
+		return "", errors.New(
+			"JWT_SIGNING_KEY belum dikonfigurasi",
+		)
+	}
+
 	now := time.Now()
 
 	claims := model.CustomClaims{
@@ -49,7 +60,7 @@ func GenerateTokenWithTTL(user model.User, ttl time.Duration) (string, error) {
 	)
 
 	return token.SignedString(
-		[]byte(os.Getenv("JWT_SECRET")),
+		[]byte(signingKey),
 	)
 }
 
@@ -61,20 +72,45 @@ func GenerateToken(user model.User) (string, error) {
 }
 
 func DecodeToken(tokenString string, claim *model.CustomClaims) error {
-	token, err := jwt.ParseWithClaims(tokenString, claim, func(t *jwt.Token) (interface{}, error) {
-		return []byte(config.JWTSigningKey()), nil
-	})
+	signingKey := strings.TrimSpace(config.JWTSigningKey())
+
+	if signingKey == "" {
+		return errors.New("JWT signing key is not configured")
+	}
+
+	token, err := jwt.ParseWithClaims(
+		tokenString,
+		claim,
+		func(t *jwt.Token) (interface{}, error) {
+
+			if t.Method == nil ||
+				t.Method.Alg() != jwt.SigningMethodHS256.Alg() {
+				return nil, errors.New(
+					"unexpected JWT signing algorithm",
+				)
+			}
+
+			return []byte(signingKey), nil
+		},
+	)
 
 	if err != nil {
-		if ve, ok := err.(*jwt.ValidationError); ok {
-			if ve.Errors&jwt.ValidationErrorExpired != 0 {
-				return jwt.ErrTokenExpired
-			}
-		}
 		return err
 	}
 
-	if !token.Valid {
+	if token == nil || !token.Valid {
+		return jwt.ErrTokenInvalidClaims
+	}
+
+	if claim.ExpiresAt == nil {
+		return errors.New("JWT expiration is required")
+	}
+
+	if !claim.VerifyExpiresAt(time.Now(), true) {
+		return jwt.ErrTokenExpired
+	}
+
+	if claim.UserID <= 0 || claim.RoleID <= 0 {
 		return jwt.ErrTokenInvalidClaims
 	}
 
