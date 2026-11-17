@@ -13,11 +13,11 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-var userUC model.IUserUsecase
+// var userUC model.IUserUsecase
 
-func InitAuthMiddleware(uc model.IUserUsecase) {
-	userUC = uc
-}
+// func InitAuthMiddleware(uc model.IUserUsecase) {
+// 	userUC = uc
+// }
 
 func AuthMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {

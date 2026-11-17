@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/joho/godotenv"
 	"github.com/tubagusmf/helpdesk-ticketing-nutech-integrasi-be/db"
@@ -51,16 +50,6 @@ func httpServer(cmd *cobra.Command, args []string) {
 	config.InitRabbitMQ(
 		os.Getenv("RABBITMQ_URL"),
 	)
-
-	// err = helper.InitCloudinary(
-	// 	config.CloudinaryCloudName(),
-	// 	config.CloudinaryAPIKey(),
-	// 	config.CloudinaryAPISecret(),
-	// )
-
-	// if err != nil {
-	// 	log.Fatalf("Cloudinary init failed: %v", err)
-	// }
 
 	postgresDB := db.NewPostgres()
 	sqlDB, err := postgresDB.DB()
@@ -148,6 +137,14 @@ func httpServer(cmd *cobra.Command, args []string) {
 
 	e := echo.New()
 
+	e.HideBanner = true
+	e.HidePort = true
+
+	e.Use(middleware.RequestID())
+	e.Use(middleware.Recover())
+	e.Use(middleware.Secure())
+	e.Use(middleware.BodyLimit("16M"))
+
 	handlerHttp.NewUserHandler(e, userUsecase)
 	handlerHttp.NewRoleHandler(e, roleUsecase)
 	handlerHttp.NewProjectHandler(e, projectUsecase)
@@ -182,6 +179,11 @@ func httpServer(cmd *cobra.Command, args []string) {
 		AllowOrigins: []string{
 			"http://localhost:5173",
 			"http://localhost:3001",
+
+			// Docker Frontend
+			"http://localhost:8080",
+			"http://127.0.0.1:8080",
+
 			// Vercel production domain
 			"https://helpdesk-ticketing-nutech-integrasi.vercel.app",
 
@@ -212,30 +214,18 @@ func httpServer(cmd *cobra.Command, args []string) {
 		},
 	}))
 
-	var wg sync.WaitGroup
-	errCh := make(chan error, 2)
-	wg.Add(2)
+	port := os.Getenv("PORT")
 
-	go func() {
-		defer wg.Done()
-		port := os.Getenv("PORT")
-		if port == "" {
-			port = "3000"
-		}
+	if port == "" {
+		port = "3000"
+	}
 
-		errCh <- e.Start(":" + port)
-	}()
-
-	go func() {
-		defer wg.Done()
-		<-errCh
-	}()
-
-	wg.Wait()
-
-	if err := <-errCh; err != nil {
+	if err := e.Start(":" + port); err != nil {
 		if err != http.ErrServerClosed {
-			logrus.Errorf("HTTP server error: %v", err)
+			logrus.Fatalf(
+				"HTTP server error: %v",
+				err,
+			)
 		}
 	}
 }
