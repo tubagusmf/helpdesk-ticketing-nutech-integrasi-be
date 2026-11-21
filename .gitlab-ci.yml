@@ -1,0 +1,22 @@
+stages:
+  - runner-test
+
+runner_verification:
+  stage: runner-test
+
+  image: alpine:3.22
+
+  tags:
+    - saas-linux-small-amd64
+
+  script:
+    - echo "=================================="
+    - echo "GITLAB RUNNER BERHASIL DIJALANKAN"
+    - echo "=================================="
+    - echo "Project: $CI_PROJECT_PATH"
+    - echo "Branch: $CI_COMMIT_REF_NAME"
+    - echo "Commit: $CI_COMMIT_SHORT_SHA"
+    - echo "Backend CI/CD Runner Test SUCCESS"
+
+  rules:
+    - if: '$CI_COMMIT_BRANCH'
