@@ -1,3 +1,8 @@
+workflow:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "develop" || $CI_COMMIT_BRANCH == "main"'
+    - when: never
+
 stages:
   - runner-test
 
@@ -7,17 +12,14 @@ runner_verification:
   image: alpine:3.22
 
   tags:
-    - saas-linux-small-amd64
+    - nutech-rocky9
 
   script:
     - |
       echo "=================================="
-      echo "GITLAB RUNNER BERHASIL DIJALANKAN"
+      echo "GITLAB BACKEND RUNNER BERHASIL"
       echo "=================================="
       echo "Project: ${CI_PROJECT_PATH}"
       echo "Branch: ${CI_COMMIT_REF_NAME}"
       echo "Commit: ${CI_COMMIT_SHORT_SHA}"
       echo "Backend CI/CD Runner Test SUCCESS"
-
-  rules:
-    - if: '$CI_COMMIT_BRANCH'
