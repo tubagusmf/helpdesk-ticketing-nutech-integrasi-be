@@ -2,3 +2,5 @@ config.yml
 dbconfig.yml
 .env
 .json
+# Ignore runtime ticket attachments
+/uploads/tickets/
